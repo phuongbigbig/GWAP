@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>qPCR Bar Plot Visualizer</title>
+<style>
+  :root{
+    --bg:#5b6675; --bg2:#2f3640; --panel:#ffffff; --ink:#1d2733; --muted:#5d6b7a;
+    --line:#dfe4ea; --accent:#2b6cb0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
+  header{background:#1d2733;color:#fff;padding:14px 22px}
+  header h1{margin:0;font-size:18px;font-weight:600}
+  header p{margin:3px 0 0;font-size:12.5px;color:#aab6c2}
+  .wrap{display:grid;grid-template-columns:380px minmax(0,1fr) 350px;gap:16px;padding:16px;align-items:start}
+  @media(max-width:1180px){.wrap{grid-template-columns:1fr 1fr}}
+  @media(max-width:760px){.wrap{grid-template-columns:1fr}}
+  .col{min-width:0}
+  .panel{background:var(--panel);border:1px solid rgba(0,0,0,.15);border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+  .panel h2{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+  input[type=text],input[type=number],select{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff;color:var(--ink)}
+  input[type=range]{width:100%}
+  .row{display:flex;gap:10px}.row>div{flex:1;min-width:0}
+  button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 11px;font-size:12.5px;color:var(--ink)}
+  button:hover{background:#eef2f6}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{background:#255a96}
+  .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  table.grid{border-collapse:collapse;width:100%;margin-top:8px}
+  table.grid th,table.grid td{border:1px solid var(--line);padding:0}
+  table.grid th{background:#f0f3f6;font-size:11px;color:var(--muted);padding:5px 6px;font-weight:600}
+  table.grid td input{width:100%;border:none;padding:6px 6px;font-size:12.5px;text-align:center;background:transparent;color:var(--ink)}
+  table.grid td input:focus{outline:2px solid var(--accent);outline-offset:-2px;background:#fff}
+  table.grid td.name input{text-align:left;font-weight:600}
+  .ctlrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .seg button{border:none;border-radius:0;padding:6px 12px}
+  .seg button.on{background:var(--accent);color:#fff}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:6px}
+  .chartwrap{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;text-align:center}
+  #chart svg{max-width:100%;height:auto}
+  .pairlist .pair{display:inline-flex;align-items:center;gap:6px;background:#eef2f6;border-radius:14px;padding:3px 10px;margin:3px 4px 0 0;font-size:12px}
+  .pairlist .pair button{border:none;background:transparent;padding:0 2px;font-size:14px;color:#c05621}
+  .statsbox{font-size:12.5px;max-height:260px;overflow:auto}
+  .statsbox table{border-collapse:collapse;width:100%}
+  .statsbox th,.statsbox td{border-bottom:1px solid var(--line);padding:5px 7px;text-align:left}
+  .statsbox th{color:var(--muted);font-weight:600}
+  .sig{font-weight:700}
+  .tag{display:inline-block;font-size:10.5px;background:#eef2f6;border-radius:10px;padding:1px 7px;color:var(--muted);margin-left:6px}
+  .err{color:#c05621;font-size:12px;margin-top:6px}
+  details{margin-top:8px}summary{cursor:pointer;color:var(--accent);font-size:12.5px}
+  .slabel{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin:10px 0 2px}
+  .slabel b{color:var(--ink);font-weight:600}
+  .panel.modal{position:fixed;inset:18px;z-index:200;overflow:auto;box-shadow:0 12px 50px rgba(0,0,0,.5)}
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150}
+  table.grid th.grp{background:#e3eaf1;border-bottom:2px solid var(--accent)}
+  table.grid td.gname input,table.grid th.grp input{font-weight:700;text-align:center;color:var(--ink);background:transparent;border:none;width:100%;padding:5px 4px}
+  table.grid td.gname input:focus,table.grid th.grp input:focus{outline:2px solid var(--accent);outline-offset:-2px;background:#fff}
+  table.grid th.grpgap,table.grid td.grpgap{border:none;width:10px;background:transparent}
+  .copyright{position:fixed;left:12px;bottom:8px;font-size:11px;color:rgba(255,255,255,.85);
+       background:rgba(0,0,0,.28);padding:3px 9px;border-radius:6px;pointer-events:none;z-index:50}
+</style>
+</head>
+<body>
+<header>
+  <h1>qPCR Bar Plot Visualizer</h1>
+  <p>Manual data entry · ANOVA + Tukey HSD / Dunnett-style controls · publication-ready B/W or color plots · SVG &amp; PNG export</p>
+</header>
+
+<div class="wrap">
+  <!-- LEFT: data + stats -->
+  <div class="col">
+    <div class="panel" id="dataPanel">
+      <h2>1 · Data input</h2>
+      <div class="ctlrow">
+        <span style="font-size:12px;color:var(--muted)">Input type:</span>
+        <div class="seg" id="modeSeg">
+          <button data-mode="relative" class="on">Relative expression</button>
+          <button data-mode="ct">Raw Ct</button>
+        </div>
+      </div>
+      <div class="hint" id="modeHint">Each row = a sample/group. Each numbered column = a replicate. Bars show the mean across replicates.</div>
+
+      <div class="ctlrow" style="margin-top:4px">
+        <span style="font-size:12px;color:var(--muted)">Grouping:</span>
+        <div class="seg" id="groupSeg"><button data-g="off" class="on">Off</button><button data-g="on">On</button></div>
+        <button id="expandBtn" style="margin-left:auto" onclick="toggleExpand()">⤢ Expand</button>
+      </div>
+      <div class="hint" id="groupHint" style="display:none">Groups appear on the x-axis; samples become the legend (by colour/pattern) and are clustered within each group. Stats and comparison brackets run inside each group separately. (Grouping uses relative-expression values.)</div>
+
+      <div id="ctOptions" style="display:none">
+        <div class="row">
+          <div><label>Control / calibrator sample</label><select id="controlSel"></select></div>
+          <div><label>Amplification efficiency</label>
+            <select id="effSel"><option value="2">100% (2^-ΔΔCt)</option><option value="1.95">95%</option><option value="1.9">90%</option></select>
+          </div>
+        </div>
+        <div class="hint">Fold change/replicate = E^−ΔΔCt; ΔCt = Ct(target) − Ct(reference); ΔΔCt = ΔCt(sample) − mean ΔCt(control).</div>
+      </div>
+
+      <div id="gridWrap" style="overflow-x:auto">
+        <div id="gridTarget"></div>
+        <div id="gridHK" style="display:none"></div>
+        <div id="gridGrouped" style="display:none"></div>
+      </div>
+
+      <div class="btns" id="btnsFlat">
+        <button onclick="addSample()">+ Sample</button>
+        <button onclick="removeSample()">− Sample</button>
+        <button onclick="addRep()">+ Replicate</button>
+        <button onclick="removeRep()">− Replicate</button>
+        <button onclick="loadExample()">Example data</button>
+      </div>
+      <div class="btns" id="btnsGrouped" style="display:none">
+        <button onclick="gAddSeries()">+ Sample</button>
+        <button onclick="gRemoveSeries()">− Sample</button>
+        <button onclick="gAddGroup()">+ Group</button>
+        <button onclick="gRemoveGroup()">− Group</button>
+        <button onclick="addRep()">+ Replicate</button>
+        <button onclick="removeRep()">− Replicate</button>
+        <button onclick="loadExample()">Example data</button>
+      </div>
+      <div class="err" id="dataErr"></div>
+    </div>
+
+    <div class="panel">
+      <h2>2 · Statistics</h2>
+      <label>Test</label>
+      <select id="testSel">
+        <option value="anova">One-way ANOVA + post-hoc</option>
+        <option value="ttest">Pairwise Welch's t-test</option>
+      </select>
+      <div class="row">
+        <div>
+          <label>Post-hoc method <span class="tag" id="phTag">ANOVA</span></label>
+          <select id="phSel">
+            <option value="tukey" id="phTukeyOpt">Tukey HSD (all pairs)</option>
+            <option value="holm">Holm t-test</option>
+            <option value="bonferroni">Bonferroni t-test</option>
+            <option value="none">Fisher LSD (uncorrected)</option>
+          </select>
+        </div>
+        <div>
+          <label>Comparisons</label>
+          <select id="cmpSel">
+            <option value="control">Each vs control</option>
+            <option value="custom">Custom pairs</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="gCtrlWrap" style="display:none">
+        <label>Control sample (legend series used as reference for “vs control”)</label>
+        <select id="gControlSel"></select>
+      </div>
+
+      <div id="customPairUI" style="display:none">
+        <div class="row">
+          <div><label>Sample A</label><select id="pairA"></select></div>
+          <div><label>Sample B</label><select id="pairB"></select></div>
+          <div style="flex:0 0 auto;display:flex;align-items:flex-end"><button onclick="addPair()">Add</button></div>
+        </div>
+        <div class="pairlist" id="pairList" style="margin-top:6px"></div>
+      </div>
+      <div class="hint" id="cmpHint">Compares every sample to the control (first row by default). Tukey computes all pairs; vs-control results are shown.</div>
+    </div>
+  </div>
+
+  <!-- CENTER: plot + results -->
+  <div class="col">
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2 style="margin:0">Plot</h2>
+        <div class="btns" style="margin:0">
+          <button class="primary" onclick="exportSVG()">⬇ SVG</button>
+          <button onclick="exportPNG()">⬇ PNG</button>
+        </div>
+      </div>
+      <div class="chartwrap" id="chart" style="margin-top:12px"></div>
+    </div>
+    <div class="panel">
+      <h2>Statistical results</h2>
+      <div class="statsbox" id="stats"></div>
+      <details><summary>Methods &amp; notes</summary><div class="hint" id="methodNotes"></div></details>
+    </div>
+  </div>
+
+  <!-- RIGHT: appearance -->
+  <div class="col">
+    <div class="panel">
+      <h2>3 · Appearance</h2>
+      <label>Plot title</label>
+      <input type="text" id="titleIn" value="TGFB1">
+      <div class="row">
+        <div><label>X-axis title</label><input type="text" id="xlabIn" value="Time"></div>
+        <div><label>Y-axis title</label><input type="text" id="ylabIn" value="mRNA fold change"></div>
+      </div>
+
+      <div class="ctlrow" style="margin-top:10px"><span style="font-size:12px;color:var(--muted)">Plot type:</span>
+        <div class="seg" id="chartSeg"><button data-t="bar" class="on">Bar</button><button data-t="box">Box</button><button data-t="violin">Violin</button></div>
+      </div>
+      <div class="ctlrow"><span style="font-size:12px;color:var(--muted)">Fill:</span>
+        <div class="seg" id="colorSeg"><button data-c="bw" class="on">B/W patterns</button><button data-c="color">Color</button></div>
+      </div>
+      <div id="themeWrap" style="display:none">
+        <label>Color theme</label>
+        <select id="themeSel">
+          <optgroup label="ggsci journal palettes">
+            <option value="npg">NPG — Nature Publishing Group</option>
+            <option value="aaas">AAAS — Science</option>
+            <option value="nejm">NEJM — N. Engl. J. Med.</option>
+            <option value="lancet">Lancet</option>
+            <option value="jama">JAMA</option>
+            <option value="jco">JCO — J. Clin. Oncol.</option>
+            <option value="bmj">BMJ</option>
+            <option value="uchicago">UChicago</option>
+            <option value="d3">D3 (d3.js category10)</option>
+          </optgroup>
+          <optgroup label="Generic">
+            <option value="classic">Classic (muted)</option>
+            <option value="pastel">Pastel</option>
+            <option value="grey">Greyscale</option>
+          </optgroup>
+        </select>
+        <div id="themeSwatch" style="display:flex;gap:3px;margin-top:5px"></div>
+      </div>
+      <div class="ctlrow"><span style="font-size:12px;color:var(--muted)">Error bars:</span>
+        <div class="seg" id="errSeg"><button data-e="sem" class="on">SEM</button><button data-e="sd">SD</button></div>
+      </div>
+      <div class="ctlrow"><span style="font-size:12px;color:var(--muted)">Sig label:</span>
+        <div class="seg" id="sigSeg"><button data-s="stars" class="on">Stars</button><button data-s="pval">p-values</button></div>
+      </div>
+      <label style="margin-top:6px"><input type="checkbox" id="dotsChk" style="width:auto;margin-right:6px">Overlay replicate points</label>
+      <label><input type="checkbox" id="legendChk" checked style="width:auto;margin-right:6px">Show legend (grouped plots)</label>
+
+      <div class="slabel"><span>Line weight</span><b id="lwVal">1.0×</b></div>
+      <input type="range" id="lwIn" min="0.4" max="3" step="0.1" value="1">
+
+      <div class="slabel"><span>Font size</span><b id="fsVal">1.0×</b></div>
+      <input type="range" id="fsIn" min="0.7" max="1.8" step="0.05" value="1">
+
+      <div class="row" style="margin-top:12px">
+        <div><label>Width (px)</label><input type="number" id="wIn" value="640" min="300" max="2000" step="20"></div>
+        <div><label>Aspect ratio</label>
+          <select id="arIn">
+            <option value="1.391">Standard (≈3:2)</option>
+            <option value="1.333">4:3</option>
+            <option value="1.5">3:2</option>
+            <option value="1.777">16:9</option>
+            <option value="1">Square</option>
+            <option value="0.8">Tall 4:5</option>
+          </select>
+        </div>
+      </div>
+      <div class="hint" id="sizeHint"></div>
+    </div>
+
+    <div class="panel">
+      <h2>4 · Statistics explained</h2>
+      <div class="statsbox" id="explainBox" style="max-height:320px;line-height:1.5"></div>
+    </div>
+  </div>
+</div>
+
+<div class="copyright">© 2026 Copyright by Nguyen Thanh Phuong</div>
+
+<script>
+/* ===================== STATISTICS ENGINE ===================== */
+function logGamma(x){var c=[76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,0.1208650973866179e-2,-0.5395239384953e-5];var ser=1.000000000190015,xx=x,y=x,tmp=x+5.5;tmp-=(xx+0.5)*Math.log(tmp);for(var j=0;j<6;j++){y+=1;ser+=c[j]/y;}return -tmp+Math.log(2.5066282746310005*ser/xx);}
+function betacf(a,b,x){var MAXIT=200,EPS=3e-12,FPMIN=1e-300,qab=a+b,qap=a+1,qam=a-1,c=1,d=1-qab*x/qap;if(Math.abs(d)<FPMIN)d=FPMIN;d=1/d;var h=d;for(var m=1;m<=MAXIT;m++){var m2=2*m,aa=m*(b-m)*x/((qam+m2)*(a+m2));d=1+aa*d;if(Math.abs(d)<FPMIN)d=FPMIN;c=1+aa/c;if(Math.abs(c)<FPMIN)c=FPMIN;d=1/d;h*=d*c;aa=-(a+m)*(qab+m)*x/((a+m2)*(qap+m2));d=1+aa*d;if(Math.abs(d)<FPMIN)d=FPMIN;c=1+aa/c;if(Math.abs(c)<FPMIN)c=FPMIN;d=1/d;var del=d*c;h*=del;if(Math.abs(del-1)<EPS)break;}return h;}
+function betai(a,b,x){if(x<=0)return 0;if(x>=1)return 1;var bt=Math.exp(logGamma(a+b)-logGamma(a)-logGamma(b)+a*Math.log(x)+b*Math.log(1-x));if(x<(a+1)/(a+b+2))return bt*betacf(a,b,x)/a;return 1-bt*betacf(b,a,1-x)/b;}
+function tDistP(t,df){if(!isFinite(t)||df<=0)return 1;return betai(df/2,0.5,df/(df+t*t));}
+function fDistP(F,d1,d2){if(!isFinite(F)||F<=0)return 1;return betai(d2/2,d1/2,d2/(d2+d1*F));}
+function erf(x){var s=x<0?-1:1;x=Math.abs(x);var a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911,t=1/(1+p*x);return s*(1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x));}
+function Phi(x){return 0.5*(1+erf(x/Math.SQRT2));}
+function nphi(x){return Math.exp(-x*x/2)/Math.sqrt(2*Math.PI);}
+// studentized range CDF P(q<q0; k groups, df)
+function prange(w,k){if(w<=0)return 0;var lo=-8,hi=8,n=240,h=(hi-lo)/n,s=0;for(var i=0;i<=n;i++){var u=lo+i*h,f=nphi(u)*Math.pow(Phi(u)-Phi(u-w),k-1);s+=(i===0||i===n?1:(i%2?4:2))*f;}return k*s*h/3;}
+function ptukey(q0,k,df){if(q0<=0)return 0;if(df>1500)return prange(q0,k);var lcoef=(df/2)*Math.log(df/2)-logGamma(df/2)+Math.log(2),lo=1e-4,hi=Math.max(2.5,1+12/Math.sqrt(df)),n=160,h=(hi-lo)/n,s=0;for(var i=0;i<=n;i++){var x=lo+i*h,g=Math.exp(lcoef+(df-1)*Math.log(x)-df*x*x/2),f=g*prange(q0*x,k);s+=(i===0||i===n?1:(i%2?4:2))*f;}return s*h/3;}
+function tukeyP(diff,n1,n2,msw,k,dfw){var se=Math.sqrt(msw/2*(1/n1+1/n2));if(se===0)return 1;var q=Math.abs(diff)/se;return Math.max(0,Math.min(1,1-ptukey(q,k,dfw)));}
+function mean(a){return a.reduce((s,v)=>s+v,0)/a.length;}
+function variance(a){var m=mean(a);return a.reduce((s,v)=>s+(v-m)*(v-m),0)/(a.length-1);}
+function welch(a,b){var n1=a.length,n2=b.length,m1=mean(a),m2=mean(b),v1=variance(a),v2=variance(b),se=Math.sqrt(v1/n1+v2/n2);if(se===0)return{t:0,df:n1+n2-2,p:1};var t=(m1-m2)/se,df=Math.pow(v1/n1+v2/n2,2)/(Math.pow(v1/n1,2)/(n1-1)+Math.pow(v2/n2,2)/(n2-1));return{t:t,df:df,p:tDistP(t,df)};}
+function anova(groups){var k=groups.length,N=0,all=[];groups.forEach(g=>{N+=g.length;all=all.concat(g);});var grand=mean(all),ssb=0,ssw=0;groups.forEach(g=>{var m=mean(g);ssb+=g.length*(m-grand)*(m-grand);g.forEach(v=>ssw+=(v-m)*(v-m));});var dfb=k-1,dfw=N-k,msb=ssb/dfb,msw=ssw/dfw;return{F:msb/msw,dfb:dfb,dfw:dfw,msw:msw,p:fDistP(msb/msw,dfb,dfw)};}
+function lsd(a,b,msw,dfw){var t=(mean(a)-mean(b))/Math.sqrt(msw*(1/a.length+1/b.length));return{t:t,df:dfw,p:tDistP(t,dfw)};}
+function adjustP(ps,method){var m=ps.length;if(method==='bonferroni')return ps.map(p=>Math.min(1,p*m));if(method==='holm'){var idx=ps.map((p,i)=>[p,i]).sort((x,y)=>x[0]-y[0]),out=new Array(m),prev=0;idx.forEach((pair,rank)=>{var adj=Math.min(1,(m-rank)*pair[0]);adj=Math.max(adj,prev);prev=adj;out[pair[1]]=adj;});return out;}return ps.slice();}
+function stars(p){if(p>0.05)return'ns';if(p>0.01)return'*';if(p>0.001)return'**';return'***';}
+function fmtP(p){return p<0.001?'p<0.001':'p='+p.toFixed(3);}
+
+/* ===================== DATA MODEL ===================== */
+var mode='relative',samples=[],nRep=3,controlIdx=0,customPairs=[];
+var cfg={chart:'bar',color:'bw',err:'sem',sig:'stars',lw:1,fs:1,W:640,ar:1.391};
+
+/* grouped (3-level) model: groups on x-axis, series in legend */
+var grouping=false,expanded=false;
+var gSeries=['TBG','JTG'];                 // legend series ("samples")
+var gGroups=['mir-93','mir-20','mir-81'];  // x-axis categories
+var gData=[];                              // gData[gi][si] = [rep strings]
+var gControl=0;                            // control series index
+var gPairs=[];                             // custom series-index pairs
+function gBlankCell(){var a=[];for(var i=0;i<nRep;i++)a.push('');return a;}
+function gEnsure(){for(var gi=0;gi<gGroups.length;gi++){if(!gData[gi])gData[gi]=[];for(var si=0;si<gSeries.length;si++){if(!gData[gi][si])gData[gi][si]=gBlankCell();while(gData[gi][si].length<nRep)gData[gi][si].push('');gData[gi][si].length=nRep;}gData[gi].length=gSeries.length;}gData.length=gGroups.length;}
+
+function blankRow(name){var r={name:name,target:[],hk:[]};for(var i=0;i<nRep;i++){r.target.push('');r.hk.push('');}return r;}
+function exampleRelative(){nRep=3;controlIdx=0;samples=[
+  {name:'control',target:[1.00,0.95,1.05],hk:[]},{name:'10min',target:[0.70,0.60,0.85],hk:[]},
+  {name:'30min',target:[2.30,2.10,2.25],hk:[]},{name:'1h',target:[1.60,1.30,1.60],hk:[]},
+  {name:'2h',target:[0.60,0.70,0.65],hk:[]}];}
+function exampleCt(){nRep=3;controlIdx=0;samples=[
+  {name:'control',target:[25.0,25.1,24.9],hk:[18.0,18.1,17.9]},{name:'10min',target:[25.6,25.7,25.4],hk:[18.0,18.0,18.1]},
+  {name:'30min',target:[23.9,23.8,24.0],hk:[18.1,18.0,17.9]},{name:'1h',target:[24.4,24.5,24.3],hk:[18.0,17.9,18.1]},
+  {name:'2h',target:[25.6,25.7,25.5],hk:[17.9,18.0,18.1]}];}
+
+function computeValues(){
+  if(mode==='relative')return samples.map(s=>s.target.filter(v=>v!==null&&v!==undefined&&String(v).trim()!==''&&isFinite(Number(v))).map(Number));
+  var E=parseFloat(document.getElementById('effSel').value)||2;
+  var dct=samples.map(s=>{var arr=[];for(var i=0;i<s.target.length;i++){var t=parseFloat(s.target[i]),h=parseFloat(s.hk[i]);if(!isNaN(t)&&!isNaN(h))arr.push(t-h);}return arr;});
+  var ctrl=dct[controlIdx],cm=ctrl&&ctrl.length?mean(ctrl):0;
+  return dct.map(arr=>arr.map(d=>Math.pow(E,-(d-cm))));
+}
+
+/* ---- grouped data ---- */
+function exampleGrouped(){nRep=3;gControl=0;gPairs=[[0,1]];
+  gSeries=['TBG','JTG'];gGroups=['mir-93','mir-20','mir-81'];
+  gData=[
+    [[0.040,0.046,0.050],[0.050,0.060,0.071]],
+    [[0.025,0.034,0.043],[0.028,0.037,0.046]],
+    [[0.055,0.068,0.081],[0.013,0.016,0.019]]
+  ];gEnsure();}
+function computeGroupedValues(){gEnsure();return gData.map(grp=>grp.map(cell=>cell.filter(v=>v!==null&&v!==undefined&&String(v).trim()!==''&&isFinite(Number(v))).map(Number)));}
+function renderGrouped(){
+  gEnsure();
+  var html='<label style="margin-top:6px">Relative expression — groups (columns) × samples (rows)</label>';
+  html+='<table class="grid"><tr><th class="name" rowspan="2">Sample</th>';
+  gGroups.forEach((g,gi)=>{if(gi)html+='<th class="grpgap" rowspan="2"></th>';html+='<th class="grp" colspan="'+nRep+'"><input value="'+escAttr(g)+'" oninput="gSetGroup('+gi+',this.value)"></th>';});
+  html+='</tr><tr>';
+  gGroups.forEach((g,gi)=>{for(var c=0;c<nRep;c++)html+='<th>R'+(c+1)+'</th>';});
+  html+='</tr>';
+  gSeries.forEach((sname,si)=>{
+    html+='<tr><td class="name"><input value="'+escAttr(sname)+'" oninput="gSetSeries('+si+',this.value)"></td>';
+    gGroups.forEach((g,gi)=>{if(gi)html+='<td class="grpgap"></td>';for(var c=0;c<nRep;c++)html+='<td><input type="number" step="any" value="'+(gData[gi][si][c]??'')+'" oninput="gSetVal('+gi+','+si+','+c+',this.value)"></td>';});
+    html+='</tr>';
+  });
+  html+='</table>';
+  document.getElementById('gridGrouped').innerHTML=html;
+  refreshSampleSelectors();
+}
+function gSetGroup(gi,v){gGroups[gi]=v;update();}
+function gSetSeries(si,v){gSeries[si]=v;refreshSampleSelectors();update();}
+function gSetVal(gi,si,c,v){gData[gi][si][c]=v;update();}
+function gAddSeries(){gSeries.push('Sample '+(gSeries.length+1));gData.forEach(grp=>grp.push(gBlankCell()));renderGrouped();update();}
+function gRemoveSeries(){if(gSeries.length>1){gSeries.pop();gData.forEach(grp=>grp.pop());if(gControl>=gSeries.length)gControl=0;renderGrouped();update();}}
+function gAddGroup(){gGroups.push('Group '+(gGroups.length+1));gData.push(gSeries.map(()=>gBlankCell()));renderGrouped();update();}
+function gRemoveGroup(){if(gGroups.length>1){gGroups.pop();gData.pop();renderGrouped();update();}}
+
+/* ===================== INPUT GRIDS ===================== */
+function repHeader(){var h='<th class="name">Sample</th>';for(var i=0;i<nRep;i++)h+='<th>Rep '+(i+1)+'</th>';return h;}
+function renderGrids(){
+  var label=mode==='ct'?'Target gene Ct':'Relative expression';
+  var html='<label style="margin-top:6px">'+label+'</label><table class="grid"><tr>'+repHeader()+'</tr>';
+  samples.forEach((s,r)=>{html+='<tr><td class="name"><input value="'+escAttr(s.name)+'" oninput="setName('+r+',this.value)"></td>';for(var c=0;c<nRep;c++)html+='<td><input type="number" step="any" value="'+(s.target[c]??'')+'" oninput="setVal(\'target\','+r+','+c+',this.value)"></td>';html+='</tr>';});
+  html+='</table>';document.getElementById('gridTarget').innerHTML=html;
+  var hk=document.getElementById('gridHK');
+  if(mode==='ct'){hk.style.display='block';var h2='<label style="margin-top:10px">Reference (housekeeping) Ct</label><table class="grid"><tr>'+repHeader()+'</tr>';samples.forEach((s,r)=>{h2+='<tr><td class="name"><input value="'+escAttr(s.name)+'" disabled style="opacity:.6"></td>';for(var c=0;c<nRep;c++)h2+='<td><input type="number" step="any" value="'+(s.hk[c]??'')+'" oninput="setVal(\'hk\','+r+','+c+',this.value)"></td>';h2+='</tr>';});h2+='</table>';hk.innerHTML=h2;}
+  else{hk.style.display='none';hk.innerHTML='';}
+  refreshSampleSelectors();
+}
+function escAttr(s){return String(s).replace(/"/g,'&quot;');}
+function escHtml(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
+function setName(r,v){samples[r].name=v;refreshSampleSelectors();update();}
+function setVal(w,r,c,v){samples[r][w][c]=v;update();}
+function addSample(){samples.push(blankRow('sample'+(samples.length+1)));renderGrids();update();}
+function removeSample(){if(samples.length>2){samples.pop();if(controlIdx>=samples.length)controlIdx=0;renderGrids();update();}}
+function addRep(){nRep++;samples.forEach(s=>{s.target.push('');s.hk.push('');});if(grouping){gData.forEach(grp=>grp.forEach(c=>c.push('')));renderGrouped();}else renderGrids();update();}
+function removeRep(){if(nRep>2){nRep--;samples.forEach(s=>{s.target.pop();s.hk.pop();});if(grouping){gData.forEach(grp=>grp.forEach(c=>c.pop()));renderGrouped();}else renderGrids();update();}}
+function refreshSampleSelectors(){
+  if(grouping){
+    var opts=gSeries.map((s,i)=>'<option value="'+i+'">'+escHtml(s)+'</option>').join('');
+    ['gControlSel','pairA','pairB'].forEach(id=>{var el=document.getElementById(id);if(!el)return;var keep=el.value;el.innerHTML=opts;if(id==='gControlSel')el.value=gControl;else if(keep&&keep<gSeries.length)el.value=keep;});
+    return;
+  }
+  var opts=samples.map((s,i)=>'<option value="'+i+'">'+escHtml(s.name)+'</option>').join('');['controlSel','pairA','pairB'].forEach(id=>{var el=document.getElementById(id);if(!el)return;var keep=el.value;el.innerHTML=opts;if(id==='controlSel')el.value=controlIdx;else if(keep&&keep<samples.length)el.value=keep;});}
+
+/* ===================== STATS DRIVER ===================== */
+// generic core: given series value-arrays + comparison spec, returns results
+function compareSeries(values,cmp,ctrl,pairList){
+  var test=document.getElementById('testSel').value,ph=document.getElementById('phSel').value;
+  var res={test:test,cmp:cmp,ph:ph,anova:null,rows:[],vsControl:{},brackets:[]};
+  var anv=null,validGroups=values.filter(v=>v.length>=2);
+  if(test==='anova'&&validGroups.length>=2)anv=res.anova=anova(validGroups);
+  var k=validGroups.length;
+  var pairs=[];
+  if(cmp==='control'){for(var i=0;i<values.length;i++)if(i!==ctrl)pairs.push([ctrl,i]);}else pairs=(pairList||[]).slice();
+  var raw=pairs.map(pr=>{var a=values[pr[0]],b=values[pr[1]];if(!a||!b||a.length<2||b.length<2)return{p:NaN,t:NaN,df:NaN,method:'—'};
+    if(test==='ttest')return Object.assign(welch(a,b),{method:'Welch t'});
+    var an=anv||anova([a,b]);
+    if(ph==='tukey'){var p=tukeyP(mean(a)-mean(b),a.length,b.length,an.msw,Math.max(k,2),an.dfw);return{t:NaN,df:an.dfw,p:p,method:'Tukey'};}
+    return Object.assign(lsd(a,b,an.msw,an.dfw),{method:'LSD t'});});
+  var rawP=raw.map(r=>isNaN(r.p)?1:r.p);
+  // Tukey p-values are already family-wise; otherwise apply the chosen correction.
+  // Welch t-tests can also take Holm/Bonferroni (Tukey needs a pooled variance, so it falls back to Holm there).
+  var adjP;
+  if(ph==='tukey')adjP=(test==='ttest')?adjustP(rawP,'holm'):rawP.slice();
+  else adjP=adjustP(rawP,ph);
+  pairs.forEach((pr,i)=>{var rec={a:pr[0],b:pr[1],t:raw[i].t,df:raw[i].df,method:raw[i].method,praw:rawP[i],padj:adjP[i]};res.rows.push(rec);if(cmp==='control')res.vsControl[pr[1]]=adjP[i];else res.brackets.push(rec);});
+  return res;
+}
+function runStats(values){return compareSeries(values,document.getElementById('cmpSel').value,controlIdx,customPairs);}
+// grouped: run compareSeries within each group independently
+function runGroupedStats(gvals){
+  var cmp=document.getElementById('cmpSel').value;
+  return gvals.map(seriesVals=>compareSeries(seriesVals,cmp,gControl,gPairs));
+}
+
+/* ===================== PLOT ===================== */
+// ggsci scientific-journal palettes (canonical hex values) + a few generic themes
+var THEMES={
+  npg:    ['#E64B35','#4DBBD5','#00A087','#3C5488','#F39B7F','#8491B4','#91D1C2','#DC0000','#7E6148','#B09C85'],
+  aaas:   ['#3B4992','#EE0000','#008B45','#631879','#008280','#BB0021','#5F559B','#A20056','#808180','#1B1919'],
+  nejm:   ['#BC3C29','#0072B5','#E18727','#20854E','#7876B1','#6F99AD','#FFDC91','#EE4C97'],
+  lancet: ['#00468B','#ED0000','#42B540','#0099B4','#925E9F','#FDAF91','#AD002A','#ADB6B6','#1B1919'],
+  jama:   ['#374E55','#DF8F44','#00A1D5','#B24745','#79AF97','#6A6599','#80796B'],
+  jco:    ['#0073C2','#EFC000','#868686','#CD534C','#7AA6DC','#003C67','#8F7700','#3B3B3B','#A73030','#4A6990'],
+  bmj:    ['#2A6EBB','#F0AB00','#C50084','#7D5CC6','#E37222','#69BE28','#00B2A9','#CD202C','#747678'],
+  d3:     ['#1F77B4','#FF7F0E','#2CA02C','#D62728','#9467BD','#8C564B','#E377C2','#7F7F7F','#BCBD22','#17BECF'],
+  uchicago:['#800000','#767676','#FFA319','#8A9045','#155F83','#C16622','#8F3931','#58593F','#350E20'],
+  classic:['#4878d0','#ee854a','#6acc64','#d65f5f','#956cb4','#8c613c','#dc7ec0'],
+  pastel: ['#a1c9f4','#ffb482','#8de5a1','#ff9f9b','#d0bbff','#fab0e4','#cfcfcf'],
+  grey:   ['#1a1a1a','#4d4d4d','#7a7a7a','#999999','#b3b3b3','#cccccc','#e0e0e0']
+};
+var PALETTE=THEMES.npg;
+function patternDefs(){return [
+ '<pattern id="pt0" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#fff"/><path d="M0,6 l6,-6 M-1,1 l2,-2 M5,7 l2,-2" stroke="#000" stroke-width="1"/></pattern>',
+ '<pattern id="pt1" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#fff"/><path d="M0,3 H6" stroke="#000" stroke-width="1.4"/></pattern>',
+ '<pattern id="pt2" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#fff"/><path d="M3,0 V6" stroke="#000" stroke-width="1.4"/></pattern>',
+ '<pattern id="pt3" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#fff"/><path d="M0,0 l6,6 M-1,5 l2,2 M5,-1 l2,2" stroke="#000" stroke-width="1"/></pattern>',
+ '<pattern id="pt4" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#fff"/><circle cx="3.5" cy="3.5" r="1.2" fill="#000"/></pattern>',
+ '<pattern id="pt5" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#fff"/><path d="M0,3 H6 M3,0 V6" stroke="#000" stroke-width="1"/></pattern>',
+ '<pattern id="pt6" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#fff"/><rect width="4" height="4" fill="#000"/><rect x="4" y="4" width="4" height="4" fill="#000"/></pattern>'
+].join('');}
+function quantile(sorted,q){if(sorted.length===1)return sorted[0];var pos=(sorted.length-1)*q,b=Math.floor(pos),r=pos-b;return sorted[b+1]!==undefined?sorted[b]+r*(sorted[b+1]-sorted[b]):sorted[b];}
+function boxStats(v){var s=v.slice().sort((a,b)=>a-b);var q1=quantile(s,0.25),med=quantile(s,0.5),q3=quantile(s,0.75),iqr=q3-q1;var loF=q1-1.5*iqr,hiF=q3+1.5*iqr;var inl=s.filter(x=>x>=loF&&x<=hiF);var wLo=inl.length?inl[0]:s[0],wHi=inl.length?inl[inl.length-1]:s[s.length-1];var out=s.filter(x=>x<loF||x>hiF);return{q1:q1,med:med,q3:q3,wLo:wLo,wHi:wHi,out:out,min:s[0],max:s[s.length-1]};}
+function kde(v,grid){var n=v.length,m=mean(v),sd=Math.sqrt(Math.max(variance(v),1e-9));var s=v.slice().sort((a,b)=>a-b);var iqr=quantile(s,0.75)-quantile(s,0.25);var sig=Math.min(sd,iqr/1.349)||sd;if(sig<=0)sig=Math.max(Math.abs(m)*0.05,1e-3);var h=0.9*sig*Math.pow(n,-0.2);if(h<=0)h=1e-3;return grid.map(y=>{var s2=0;for(var i=0;i<n;i++){var u=(y-v[i])/h;s2+=Math.exp(-u*u/2);}return s2/(n*h*Math.sqrt(2*Math.PI));});}
+function niceMax(v){var exp=Math.floor(Math.log10(v)),f=v/Math.pow(10,exp);var nf=f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10;return nf*Math.pow(10,exp);}
+function niceTicks(max,c){var step=max/c,out=[];for(var i=0;i<=c;i++)out.push(+(step*i).toPrecision(4));return out;}
+function fmtTick(t){return Math.abs(t)<1e-9?'0':(t%1===0?t.toString():t.toFixed(t<1?2:1));}
+function seriesErr(v){if(v.length<2)return 0;var sd=Math.sqrt(variance(v));return cfg.err==='sem'?sd/Math.sqrt(v.length):sd;}
+function seriesTopVal(v){if(!v.length)return 0;if(cfg.chart==='bar')return mean(v)+seriesErr(v);if(cfg.chart==='box'){var b=boxStats(v);return Math.max(b.wHi,b.max);}return Math.max.apply(null,v);}
+// draw one bar/box/violin element centred at cx; returns svg string
+function drawElement(v,cx,barW,Y,plotBottom,FS,LW,fill,showDots){
+  if(!v.length)return '';
+  var bw=(LW*1.1).toFixed(2),ew=(LW*1.2).toFixed(2),dotR=(2.4*Math.sqrt(FS)).toFixed(1),cap=barW*0.28,x=cx-barW/2,s='';
+  if(cfg.chart==='bar'){
+    var m=mean(v),err=seriesErr(v),y=Y(m),h=plotBottom-y;
+    s+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" fill="'+fill+'" stroke="#000" stroke-width="'+bw+'"/>';
+    if(err>0){var yt=Y(m+err);s+='<line x1="'+cx+'" y1="'+y+'" x2="'+cx+'" y2="'+yt+'" stroke="#000" stroke-width="'+ew+'"/>';s+='<line x1="'+(cx-7)+'" y1="'+yt+'" x2="'+(cx+7)+'" y2="'+yt+'" stroke="#000" stroke-width="'+ew+'"/>';}
+  } else if(cfg.chart==='box'){
+    var b=boxStats(v);
+    s+='<line x1="'+cx+'" y1="'+Y(b.q3)+'" x2="'+cx+'" y2="'+Y(b.wHi)+'" stroke="#000" stroke-width="'+ew+'"/>';
+    s+='<line x1="'+cx+'" y1="'+Y(b.q1)+'" x2="'+cx+'" y2="'+Y(b.wLo)+'" stroke="#000" stroke-width="'+ew+'"/>';
+    s+='<line x1="'+(cx-cap)+'" y1="'+Y(b.wHi)+'" x2="'+(cx+cap)+'" y2="'+Y(b.wHi)+'" stroke="#000" stroke-width="'+ew+'"/>';
+    s+='<line x1="'+(cx-cap)+'" y1="'+Y(b.wLo)+'" x2="'+(cx+cap)+'" y2="'+Y(b.wLo)+'" stroke="#000" stroke-width="'+ew+'"/>';
+    s+='<rect x="'+x.toFixed(1)+'" y="'+Y(b.q3).toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+Math.max(0.5,Y(b.q1)-Y(b.q3)).toFixed(1)+'" fill="'+fill+'" stroke="#000" stroke-width="'+bw+'"/>';
+    s+='<line x1="'+x+'" y1="'+Y(b.med)+'" x2="'+(x+barW)+'" y2="'+Y(b.med)+'" stroke="#000" stroke-width="'+(LW*1.6).toFixed(2)+'"/>';
+    b.out.forEach(o=>{s+='<circle cx="'+cx+'" cy="'+Y(o).toFixed(1)+'" r="'+dotR+'" fill="none" stroke="#000" stroke-width="'+bw+'"/>';});
+  } else {
+    var lo=Math.min.apply(null,v),hi=Math.max.apply(null,v);
+    if(hi-lo<1e-9){var pad=Math.max(Math.abs(hi)*0.06,0.05);lo-=pad;hi+=pad;}
+    var steps=48,grid=[];for(var g=0;g<=steps;g++)grid.push(lo+(hi-lo)*g/steps);
+    var dens=kde(v,grid),maxD=Math.max.apply(null,dens)||1,half=barW/2;
+    var d='M';for(g=0;g<=steps;g++){d+=(g?' L':'')+(cx+dens[g]/maxD*half).toFixed(1)+','+Y(grid[g]).toFixed(1);}
+    for(g=steps;g>=0;g--){d+=' L'+(cx-dens[g]/maxD*half).toFixed(1)+','+Y(grid[g]).toFixed(1);}
+    d+=' Z';
+    s+='<path d="'+d+'" fill="'+fill+'" stroke="#000" stroke-width="'+bw+'"/>';
+    var b2=boxStats(v);
+    s+='<line x1="'+cx+'" y1="'+Y(b2.q1)+'" x2="'+cx+'" y2="'+Y(b2.q3)+'" stroke="#000" stroke-width="'+(LW*3).toFixed(2)+'" stroke-linecap="round"/>';
+    s+='<circle cx="'+cx+'" cy="'+Y(b2.med)+'" r="'+(2.8*Math.sqrt(FS)).toFixed(1)+'" fill="#fff" stroke="#000" stroke-width="'+bw+'"/>';
+  }
+  if(showDots)v.forEach(val=>{var jx=cx+(Math.random()-0.5)*barW*0.45;s+='<circle cx="'+jx.toFixed(1)+'" cy="'+Y(val).toFixed(1)+'" r="'+dotR+'" fill="#222" fill-opacity="0.7"/>';});
+  return s;
+}
+function seriesFill(idx){return cfg.color==='color'?PALETTE[idx%PALETTE.length]:'url(#pt'+(idx%7)+')';}
+
+function buildSVG(values,stat){
+  var FS=cfg.fs, LW=cfg.lw, W=cfg.W, H=Math.round(W/cfg.ar);
+  var f=function(px){return (px*FS).toFixed(1);};
+  var mL=Math.round(56+22*FS), mR=Math.round(20+6*FS), mT=Math.round(40+16*FS), mB=Math.round(64+26*FS);
+  var plotW=W-mL-mR, plotH=H-mT-mB, n=samples.length;
+  var allPts=values.flat();
+  // top value of each drawn element (used for sig-marker placement & axis range)
+  var tops=values.map(v=>seriesTopVal(v));
+  var globalMax=Math.max.apply(null,tops.concat(document.getElementById('dotsChk').checked?allPts:[],0.0001));
+  var custom=document.getElementById('cmpSel').value==='custom';
+  var L=custom?stat.brackets.length:0;
+  var gap=Math.max(globalMax,1e-6)*0.11;
+  var yMax = custom&&L>0 ? niceMax(globalMax+gap*(L+0.9)) : niceMax(globalMax*1.16);
+  function X(i){return mL+(i+0.5)*(plotW/n);}
+  function Y(v){return mT+plotH-(v/yMax)*plotH;}
+  var barW=Math.min(58,(plotW/n)*0.62);
+  var aw=(LW*1.4).toFixed(2), bw=(LW*1.1).toFixed(2), ew=(LW*1.2).toFixed(2), sw=(LW*1.1).toFixed(2);
+  var s='';
+  s+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="#ffffff"/>';
+  s+='<defs>'+patternDefs()+'</defs>';
+  s+='<text x="'+(W/2)+'" y="'+(mT-14)+'" text-anchor="middle" font-family="Arial" font-size="'+f(18)+'" font-weight="700" font-style="italic">'+escHtml(document.getElementById('titleIn').value)+'</text>';
+  s+='<line x1="'+mL+'" y1="'+mT+'" x2="'+mL+'" y2="'+(mT+plotH)+'" stroke="#000" stroke-width="'+aw+'"/>';
+  s+='<line x1="'+mL+'" y1="'+(mT+plotH)+'" x2="'+(mL+plotW)+'" y2="'+(mT+plotH)+'" stroke="#000" stroke-width="'+aw+'"/>';
+  niceTicks(yMax,5).forEach(t=>{var y=Y(t);s+='<line x1="'+(mL-5)+'" y1="'+y+'" x2="'+mL+'" y2="'+y+'" stroke="#000" stroke-width="'+bw+'"/>';s+='<text x="'+(mL-9)+'" y="'+(y+4)+'" text-anchor="end" font-family="Arial" font-size="'+f(12)+'">'+fmtTick(t)+'</text>';});
+  s+='<text transform="translate('+(mL-44*FS)+','+(mT+plotH/2)+') rotate(-90)" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('ylabIn').value)+'</text>';
+  s+='<text x="'+(mL+plotW/2)+'" y="'+(H-10)+'" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('xlabIn').value)+'</text>';
+  var showDots=document.getElementById('dotsChk').checked;
+  for(var i=0;i<n;i++){
+    var cx=X(i);
+    s+=drawElement(values[i],cx,barW,Y,mT+plotH,FS,LW,seriesFill(i),showDots);
+    s+='<text x="'+cx+'" y="'+(mT+plotH+16)+'" text-anchor="end" font-family="Arial" font-size="'+f(12)+'" transform="rotate(-30 '+cx+' '+(mT+plotH+16)+')">'+escHtml(samples[i].name)+'</text>';
+  }
+  // significance — vs control: stars above each bar
+  if(!custom){
+    for(var i=0;i<n;i++){if(i===controlIdx)continue;var p=stat.vsControl[i];if(p===undefined)continue;var label=cfg.sig==='pval'?fmtP(p):stars(p);var yy=Y(tops[i])-8;s+='<text x="'+X(i)+'" y="'+yy.toFixed(1)+'" text-anchor="middle" font-family="Arial" font-size="'+f(cfg.sig==='pval'?11:15)+'" font-weight="700">'+label+'</text>';}
+  } else {
+    // brackets stacked ABOVE the highest bar (never overlapping bars)
+    stat.brackets.forEach((b,lvl)=>{
+      var i1=Math.min(b.a,b.b),i2=Math.max(b.a,b.b);
+      var val=globalMax+gap*(lvl+1);
+      var by=Y(val);
+      var label=cfg.sig==='pval'?fmtP(b.padj):stars(b.padj);
+      var tick=7;
+      s+='<path d="M'+X(i1)+','+(by+tick)+' V'+by+' H'+X(i2)+' V'+(by+tick)+'" fill="none" stroke="#000" stroke-width="'+sw+'"/>';
+      s+='<text x="'+((X(i1)+X(i2))/2)+'" y="'+(by-4)+'" text-anchor="middle" font-family="Arial" font-size="'+f(cfg.sig==='pval'?11:14)+'" font-weight="700">'+label+'</text>';
+    });
+  }
+  var legend=cfg.chart==='bar'?('error bars: '+cfg.err.toUpperCase()):(cfg.chart==='box'?'box: median, IQR, 1.5×IQR whiskers':'violin: KDE; bar=IQR, dot=median');
+  s+='<text x="'+(mL+plotW)+'" y="'+(mT-4)+'" text-anchor="end" font-family="Arial" font-size="'+f(10.5)+'" fill="#555">'+legend+'</text>';
+  document.getElementById('sizeHint').textContent='Output: '+W+' × '+H+' px';
+  return '<svg id="theSVG" xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'+s+'</svg>';
+}
+
+/* ===================== GROUPED PLOT ===================== */
+function buildGroupedSVG(gvals,gstats){
+  var FS=cfg.fs,LW=cfg.lw,W=cfg.W,H=Math.round(W/cfg.ar);
+  var f=function(px){return (px*FS).toFixed(1);};
+  var mL=Math.round(56+22*FS),mR=Math.round(20+6*FS),mT=Math.round(40+16*FS),mB=Math.round(58+24*FS);
+  var plotW=W-mL-mR,plotH=H-mT-mB,G=gGroups.length,S=gSeries.length;
+  var showDots=document.getElementById('dotsChk').checked;
+  // per (group,series) top values
+  var topV=gvals.map(grp=>grp.map(v=>seriesTopVal(v)));
+  var groupMax=topV.map((arr,gi)=>{var extra=showDots?gvals[gi].flat():[];return Math.max.apply(null,arr.concat(extra,0.0001));});
+  var gMaxAll=Math.max.apply(null,groupMax.concat(0.0001));
+  var gapU=Math.max(gMaxAll,1e-6)*0.11;
+  var need=gMaxAll*1.16;
+  gstats.forEach((st,gi)=>{var nb=st.rows.length;if(nb)need=Math.max(need,groupMax[gi]+gapU*(nb+0.9));});
+  var yMax=niceMax(need);
+  var slot=plotW/G;
+  var clusterW=slot*0.80, step=clusterW/S, barW=Math.min(58,step*0.82);
+  function gx(gi,si){return mL+(gi+0.5)*slot + (si-(S-1)/2)*step;}
+  function slotC(gi){return mL+(gi+0.5)*slot;}
+  function Y(v){return mT+plotH-(v/yMax)*plotH;}
+  var aw=(LW*1.4).toFixed(2),bw=(LW*1.1).toFixed(2),sw=(LW*1.1).toFixed(2);
+  var s='';
+  s+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="#ffffff"/><defs>'+patternDefs()+'</defs>';
+  s+='<text x="'+(W/2)+'" y="'+(mT-14)+'" text-anchor="middle" font-family="Arial" font-size="'+f(18)+'" font-weight="700" font-style="italic">'+escHtml(document.getElementById('titleIn').value)+'</text>';
+  s+='<line x1="'+mL+'" y1="'+mT+'" x2="'+mL+'" y2="'+(mT+plotH)+'" stroke="#000" stroke-width="'+aw+'"/>';
+  s+='<line x1="'+mL+'" y1="'+(mT+plotH)+'" x2="'+(mL+plotW)+'" y2="'+(mT+plotH)+'" stroke="#000" stroke-width="'+aw+'"/>';
+  niceTicks(yMax,5).forEach(t=>{var y=Y(t);s+='<line x1="'+(mL-5)+'" y1="'+y+'" x2="'+mL+'" y2="'+y+'" stroke="#000" stroke-width="'+bw+'"/>';s+='<text x="'+(mL-9)+'" y="'+(y+4)+'" text-anchor="end" font-family="Arial" font-size="'+f(12)+'">'+fmtTick(t)+'</text>';});
+  s+='<text transform="translate('+(mL-44*FS)+','+(mT+plotH/2)+') rotate(-90)" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('ylabIn').value)+'</text>';
+  s+='<text x="'+(mL+plotW/2)+'" y="'+(H-10)+'" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('xlabIn').value)+'</text>';
+  // bars + group labels
+  for(var gi=0;gi<G;gi++){
+    for(var si=0;si<S;si++){
+      s+=drawElement(gvals[gi][si],gx(gi,si),barW,Y,mT+plotH,FS,LW,seriesFill(si),showDots);
+    }
+    s+='<text x="'+slotC(gi)+'" y="'+(mT+plotH+18)+'" text-anchor="middle" font-family="Arial" font-size="'+f(12.5)+'" font-weight="700">'+escHtml(gGroups[gi])+'</text>';
+    // within-group brackets (each comparison)
+    gstats[gi].rows.forEach((r,lvl)=>{
+      var x1=gx(gi,r.a),x2=gx(gi,r.b),val=groupMax[gi]+gapU*(lvl+1),by=Y(val);
+      var label=cfg.sig==='pval'?fmtP(r.padj):stars(r.padj),tick=6;
+      s+='<path d="M'+x1+','+(by+tick)+' V'+by+' H'+x2+' V'+(by+tick)+'" fill="none" stroke="#000" stroke-width="'+sw+'"/>';
+      s+='<text x="'+((x1+x2)/2)+'" y="'+(by-4)+'" text-anchor="middle" font-family="Arial" font-size="'+f(cfg.sig==='pval'?11:14)+'" font-weight="700">'+label+'</text>';
+    });
+  }
+  // legend (series), top-right inside plot — optional
+  if(document.getElementById('legendChk').checked){
+    var swW=16*FS,swH=11*FS,lh=Math.max(16,18*FS),pad=6*FS;
+    var nameW=Math.max.apply(null,gSeries.map(nm=>nm.length))*6.4*FS;
+    var boxW=swW+8+nameW+pad*2, boxH=S*lh+pad*2;
+    var lx=mL+plotW-boxW-6, ly=mT+6;
+    s+='<rect x="'+lx+'" y="'+ly+'" width="'+boxW.toFixed(1)+'" height="'+boxH.toFixed(1)+'" fill="#ffffff" stroke="#999" stroke-width="'+(0.8*LW)+'" rx="4"/>';
+    gSeries.forEach((nm,si)=>{
+      var ey=ly+pad+si*lh;
+      s+='<rect x="'+(lx+pad)+'" y="'+ey+'" width="'+swW.toFixed(1)+'" height="'+swH.toFixed(1)+'" fill="'+seriesFill(si)+'" stroke="#000" stroke-width="'+bw+'"/>';
+      s+='<text x="'+(lx+pad+swW+6)+'" y="'+(ey+swH-1)+'" font-family="Arial" font-size="'+f(12)+'">'+escHtml(nm)+'</text>';
+    });
+  }
+  document.getElementById('sizeHint').textContent='Output: '+W+' × '+H+' px';
+  return '<svg id="theSVG" xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'+s+'</svg>';
+}
+
+/* ===================== STATS TABLE ===================== */
+function renderStatsTable(values,stat){
+  var box=document.getElementById('stats'),html='';
+  if(stat.anova){var a=stat.anova;html+='<p style="margin:0 0 8px"><b>One-way ANOVA:</b> F('+a.dfb+', '+a.dfw+') = '+a.F.toFixed(3)+', '+fmtP(a.p)+' <span class="sig">'+stars(a.p)+'</span></p>';}
+  html+='<table><tr><th>Comparison</th><th>method</th><th>t</th><th>df</th><th>p (raw)</th><th>p (adj)</th><th></th></tr>';
+  stat.rows.forEach(r=>{var rawc=(r.method==='Tukey'||isNaN(r.praw))?'—':r.praw.toFixed(4);html+='<tr><td>'+escHtml(samples[r.a].name)+' vs '+escHtml(samples[r.b].name)+'</td><td>'+r.method+'</td><td>'+(isNaN(r.t)?'—':r.t.toFixed(3))+'</td><td>'+(isNaN(r.df)?'—':(+r.df).toFixed(1))+'</td><td>'+rawc+'</td><td>'+(isNaN(r.padj)?'—':r.padj.toFixed(4))+'</td><td class="sig">'+stars(r.padj)+'</td></tr>';});
+  html+='</table>';box.innerHTML=html;
+  var test=document.getElementById('testSel').value,ph=document.getElementById('phSel').value,cmp=document.getElementById('cmpSel').value;
+  var phName={tukey:'Tukey HSD',holm:'Holm-adjusted t-tests',bonferroni:'Bonferroni-adjusted t-tests',none:'uncorrected Fisher LSD'}[ph];
+  document.getElementById('methodNotes').innerHTML=
+    'Bars = mean of replicates; error bars = '+(cfg.err==='sem'?'SEM':'SD')+'. '+
+    (test==='anova'
+      ? 'Groups compared by one-way ANOVA; post-hoc = '+phName+'. '+
+        (ph==='tukey'?'Tukey HSD (Tukey–Kramer for unequal n) controls the family-wise error rate across all pairwise comparisons and is the standard choice when comparing every group to every other. '
+         :'These pairwise t-tests use the pooled within-group variance from the ANOVA. ')
+      : "Pairs compared with Welch's unequal-variance t-test (no ANOVA). ")+
+    (cmp==='control'?'<b>Design note:</b> when every group is compared only to a single control, <b>Dunnett’s test</b> is the most powerful valid choice; Tukey/Holm here are slightly conservative but fully valid. ':'')+
+    'Significance: ns p&gt;0.05, * p≤0.05, ** p≤0.01, *** p≤0.001. '+
+    (mode==='ct'?'Fold changes derived from raw Ct via the ΔΔCt method against the selected control and reference gene. ':'')+
+    '<br><br><b>Is this appropriate?</b> For comparing several groups, running many unadjusted t-tests inflates false positives — ANOVA followed by a multiplicity-controlling post-hoc (Tukey for all pairs, or Dunnett vs a control) is the recommended approach. Assumptions: approximately normal residuals and similar variances; with small n (n=3 typical in qPCR) these tests have low power, so interpret non-significant results cautiously. qPCR ratios are often analysed on the log scale — consider entering log-transformed values if your data are strongly skewed.';
+}
+
+/* ===================== GROUPED STATS TABLE ===================== */
+function renderGroupedStatsTable(gvals,gstats){
+  var box=document.getElementById('stats'),html='';
+  gGroups.forEach((gname,gi)=>{
+    var st=gstats[gi];
+    html+='<p style="margin:8px 0 3px"><b>'+escHtml(gname)+'</b>'+(st.anova?(' — ANOVA F('+st.anova.dfb+','+st.anova.dfw+') = '+st.anova.F.toFixed(2)+', '+fmtP(st.anova.p)+' <span class="sig">'+stars(st.anova.p)+'</span>'):'')+'</p>';
+    if(st.rows.length){
+      html+='<table><tr><th>Comparison</th><th>method</th><th>p (adj)</th><th></th></tr>';
+      st.rows.forEach(r=>{html+='<tr><td>'+escHtml(gSeries[r.a])+' vs '+escHtml(gSeries[r.b])+'</td><td>'+r.method+'</td><td>'+(isNaN(r.padj)?'—':r.padj.toFixed(4))+'</td><td class="sig">'+stars(r.padj)+'</td></tr>';});
+      html+='</table>';
+    }
+  });
+  box.innerHTML=html;
+  var test=document.getElementById('testSel').value,ph=document.getElementById('phSel').value;
+  var phName={tukey:'Tukey HSD',holm:'Holm-adjusted t-tests',bonferroni:'Bonferroni-adjusted t-tests',none:'uncorrected Fisher LSD'}[ph];
+  document.getElementById('methodNotes').innerHTML=
+    '<b>Grouping mode:</b> each group on the x-axis is analysed independently — the chosen test'+(test==='anova'?(' (one-way ANOVA + '+phName+')'):" (Welch's t-test)")+' and any multiplicity correction are applied <i>within each group separately</i>, and comparison brackets connect samples only inside the same group. Samples are identified by the legend (colour/pattern). '+
+    'Bars = mean of replicates; error bars = '+(cfg.err==='sem'?'SEM':'SD')+'. Significance: ns p&gt;0.05, * p≤0.05, ** p≤0.01, *** p≤0.001. '+
+    'With the typical n=3 replicates these tests have low power; interpret accordingly.';
+}
+
+/* ===================== EXPLANATION CARD ===================== */
+var REFS={
+ student:"Student. (1908). The probable error of a mean. <i>Biometrika, 6</i>(1), 1–25.",
+ welch:"Welch, B. L. (1947). The generalization of ‘Student’s’ problem when several different population variances are involved. <i>Biometrika, 34</i>(1–2), 28–35.",
+ fisher:"Fisher, R. A. (1925). <i>Statistical methods for research workers.</i> Oliver &amp; Boyd.",
+ tukey:"Tukey, J. W. (1949). Comparing individual means in the analysis of variance. <i>Biometrics, 5</i>(2), 99–114.",
+ kramer:"Kramer, C. Y. (1956). Extension of multiple range tests to group means with unequal numbers of replications. <i>Biometrics, 12</i>(3), 307–310.",
+ dunn:"Dunn, O. J. (1961). Multiple comparisons among means. <i>Journal of the American Statistical Association, 56</i>(293), 52–64.",
+ holm:"Holm, S. (1979). A simple sequentially rejective multiple test procedure. <i>Scandinavian Journal of Statistics, 6</i>(2), 65–70.",
+ dunnett:"Dunnett, C. W. (1955). A multiple comparison procedure for comparing several treatments with a control. <i>Journal of the American Statistical Association, 50</i>(272), 1096–1121.",
+ livak:"Livak, K. J., &amp; Schmittgen, T. D. (2001). Analysis of relative gene expression data using real-time quantitative PCR and the 2−ΔΔC<sub>T</sub> method. <i>Methods, 25</i>(4), 402–408.",
+ pfaffl:"Pfaffl, M. W. (2001). A new mathematical model for relative quantification in real-time RT-PCR. <i>Nucleic Acids Research, 29</i>(9), e45.",
+ miqe:"Bustin, S. A., Benes, V., Garson, J. A., Hellemans, J., Huggett, J., Kubista, M., … Wittwer, C. T. (2009). The MIQE guidelines: Minimum information for publication of quantitative real-time PCR experiments. <i>Clinical Chemistry, 55</i>(4), 611–622."
+};
+function updateExplain(){
+  var test=document.getElementById('testSel').value,ph=document.getElementById('phSel').value,cmp=document.getElementById('cmpSel').value;
+  var refs=[],h='';
+  if(test==='anova'){
+    h+='<p><b>One-way ANOVA</b> asks one question first: are the means of <i>all</i> groups equal, or is at least one different? It does this with the F-ratio — variation <i>between</i> group means divided by variation <i>within</i> groups. Doing this before any pairwise test guards against the false positives you would get from comparing every pair blindly.</p>';
+    refs.push('fisher');
+    if(ph==='tukey'){h+='<p><b>Post-hoc — Tukey’s HSD</b> (Tukey–Kramer for unequal replicate numbers) then compares every pair of groups while holding the <i>family-wise</i> false-positive rate at 5% across all comparisons. It is the textbook choice when you want to compare every group with every other. The reported p-values are already corrected, so no separate adjustment is applied.</p>';refs.push('tukey','kramer');}
+    else if(ph==='holm'){h+='<p><b>Post-hoc — Holm-adjusted t-tests.</b> Pairwise comparisons use the pooled within-group variance from the ANOVA; the p-values are then adjusted by Holm’s step-down procedure, which controls the family-wise error rate but is uniformly more powerful (less conservative) than Bonferroni.</p>';refs.push('holm','student');}
+    else if(ph==='bonferroni'){h+='<p><b>Post-hoc — Bonferroni-adjusted t-tests.</b> Each pairwise p-value is multiplied by the number of comparisons. Simple and strict; it strongly controls false positives but loses power when there are many comparisons.</p>';refs.push('dunn','student');}
+    else{h+='<p><b>Post-hoc — Fisher’s LSD (uncorrected).</b> Pairwise t-tests using the pooled ANOVA variance, with <i>no</i> multiplicity correction. Only defensible when the overall ANOVA is significant and the number of comparisons is small; otherwise it inflates false positives.</p>';refs.push('student');}
+  } else {
+    h+='<p><b>Welch’s t-test</b> compares two groups at a time <i>without</i> assuming they have equal variances. This is safer than the classic Student t-test for small, unevenly varying qPCR replicates, and it is the recommended default for two-group comparisons.</p>';refs.push('welch','student');
+    if(ph==='bonferroni'){h+='<p><b>Correction — Bonferroni.</b> Each p-value is multiplied by the number of comparisons to keep the overall false-positive rate at 5%.</p>';refs.push('dunn');}
+    else if(ph==='none'){h+='<p style="color:#c05621"><b>Correction — none.</b> With more than one comparison this inflates false positives; prefer Holm or Bonferroni unless you have a single planned comparison.</p>';}
+    else{h+='<p><b>Correction — Holm.</b> A step-down adjustment of the t-test p-values that controls the family-wise error rate and is more powerful than Bonferroni. (Tukey is unavailable here because it needs a pooled ANOVA variance.)</p>';refs.push('holm');}
+  }
+  if(cmp==='control'){h+='<p><b>Design — each sample vs. control.</b> When every group is compared only to a single reference, <b>Dunnett’s test</b> is the most powerful valid procedure and is worth citing as the ideal; the Tukey/Holm options used here are fully valid but slightly more conservative for this design.</p>';refs.push('dunnett');}
+  else{h+='<p><b>Design — selected pairs.</b> Only the pairs you add are tested, but the multiplicity correction still accounts for how many comparisons you make.</p>';}
+  if(grouping)h+='<p><b>Grouping mode.</b> Each group on the x-axis is treated as its own independent experiment: the test and its correction are computed <i>within</i> each group separately, and comparison brackets never cross groups.</p>';
+  h+='<p><b>Assumptions &amp; cautions.</b> These tests assume approximately normal residuals and (for ANOVA/Tukey) similar variances across groups. qPCR studies typically use n=3, which gives <i>low power</i> — a non-significant result is not proof of “no difference.” Expression ratios are right-skewed, so analysing on the log scale (ΔCt or log₂ fold change) often fits the assumptions better. Significance marks: ns p&gt;0.05, * p≤0.05, ** p≤0.01, *** p≤0.001.</p>';
+  if(mode==='ct'&&!grouping){h+='<p><b>Quantification (ΔΔCt).</b> Fold change = E<sup>−ΔΔCt</sup>, where ΔCt = Ct(target) − Ct(reference) and ΔΔCt is relative to the control sample’s mean ΔCt. With efficiency E = 2 this is the classic Livak 2<sup>−ΔΔCt</sup> method; for fully independent target/reference efficiencies, the Pfaffl model is the rigorous alternative.</p>';refs.push('livak','pfaffl');}
+  refs.push('miqe');
+  var seen={},list=[];refs.forEach(r=>{if(!seen[r]){seen[r]=1;list.push(r);}});
+  h+='<p style="margin:8px 0 2px"><b>References (APA)</b></p><ol style="margin:0 0 0 16px;padding:0;font-size:11.5px;color:#444">'+list.map(r=>'<li style="margin-bottom:5px">'+REFS[r]+'</li>').join('')+'</ol>';
+  document.getElementById('explainBox').innerHTML=h;
+}
+
+/* ===================== MAIN ===================== */
+function update(){
+  updateExplain();
+  var err=document.getElementById('dataErr');err.textContent='';
+  if(grouping){
+    gControl=parseInt((document.getElementById('gControlSel')||{}).value||0,10)||0;
+    var gvals=computeGroupedValues();
+    if(gvals.some(grp=>grp.some(v=>v.length<2)))err.textContent='Each sample in each group needs ≥2 numeric replicates for statistics.';
+    var gstats=runGroupedStats(gvals);
+    document.getElementById('chart').innerHTML=buildGroupedSVG(gvals,gstats);
+    renderGroupedStatsTable(gvals,gstats);
+    return;
+  }
+  controlIdx=parseInt(document.getElementById('controlSel').value||0,10)||0;
+  var values=computeValues();
+  if(values.some(v=>v.length<2))err.textContent='Each sample needs ≥2 numeric replicates for statistics.';
+  var stat=runStats(values);
+  document.getElementById('chart').innerHTML=buildSVG(values,stat);
+  renderStatsTable(values,stat);
+}
+
+/* ===================== CUSTOM PAIRS ===================== */
+function addPair(){var a=+document.getElementById('pairA').value,b=+document.getElementById('pairB').value;if(a===b)return;var list=grouping?gPairs:customPairs;if(list.some(p=>(p[0]===a&&p[1]===b)||(p[0]===b&&p[1]===a)))return;list.push([a,b]);renderPairs();update();}
+function renderPairs(){var list=grouping?gPairs:customPairs,names=grouping?gSeries:samples.map(s=>s.name);document.getElementById('pairList').innerHTML=list.map((p,i)=>'<span class="pair">'+escHtml(names[p[0]])+' ↔ '+escHtml(names[p[1]])+' <button onclick="delPair('+i+')">×</button></span>').join('');}
+function delPair(i){(grouping?gPairs:customPairs).splice(i,1);renderPairs();update();}
+
+/* ===================== EXPORT ===================== */
+function currentSVGString(){return '<?xml version="1.0" encoding="UTF-8"?>\n'+new XMLSerializer().serializeToString(document.getElementById('theSVG').cloneNode(true));}
+function download(blob,name){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function fileBase(){return (document.getElementById('titleIn').value||'qpcr').replace(/[^\w\-]+/g,'_');}
+function exportSVG(){download(new Blob([currentSVGString()],{type:'image/svg+xml'}),fileBase()+'.svg');}
+function exportPNG(){var svgStr=currentSVGString(),svg=document.getElementById('theSVG'),w=+svg.getAttribute('width'),h=+svg.getAttribute('height'),scale=3,img=new Image(),blob=new Blob([svgStr],{type:'image/svg+xml;charset=utf-8'}),url=URL.createObjectURL(blob);img.onload=function(){var c=document.createElement('canvas');c.width=w*scale;c.height=h*scale;var ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.setTransform(scale,0,0,scale,0,0);ctx.drawImage(img,0,0);URL.revokeObjectURL(url);c.toBlob(b=>download(b,fileBase()+'.png'),'image/png');};img.onerror=function(){alert('PNG export failed; SVG still works.');URL.revokeObjectURL(url);};img.src=url;}
+
+/* ===================== WIRING ===================== */
+function loadExample(){if(grouping){exampleGrouped();renderGrouped();}else{if(mode==='ct')exampleCt();else exampleRelative();renderGrids();}update();}
+function applyGroupingUI(){
+  document.getElementById('groupHint').style.display=grouping?'block':'none';
+  document.getElementById('gridTarget').style.display=grouping?'none':'block';
+  document.getElementById('gridGrouped').style.display=grouping?'block':'none';
+  document.getElementById('gridHK').style.display=(!grouping&&mode==='ct')?'block':'none';
+  document.getElementById('btnsFlat').style.display=grouping?'none':'flex';
+  document.getElementById('btnsGrouped').style.display=grouping?'flex':'none';
+  document.getElementById('modeSeg').style.opacity=grouping?0.45:1;
+  document.getElementById('modeSeg').style.pointerEvents=grouping?'none':'auto';
+  document.getElementById('ctOptions').style.display=(!grouping&&mode==='ct')?'block':'none';
+  var cmp=document.getElementById('cmpSel').value;
+  document.getElementById('gCtrlWrap').style.display=(grouping&&cmp==='control')?'block':'none';
+  if(grouping)renderGrouped();else renderGrids();
+  renderPairs();
+}
+function toggleExpand(){
+  expanded=!expanded;
+  var p=document.getElementById('dataPanel');
+  document.getElementById('expandBtn').textContent=expanded?'⤡ Collapse':'⤢ Expand';
+  var bd=document.getElementById('inputBackdrop');
+  if(expanded){p.classList.add('modal');if(!bd){bd=document.createElement('div');bd.id='inputBackdrop';bd.className='backdrop';bd.onclick=toggleExpand;document.body.appendChild(bd);}}
+  else{p.classList.remove('modal');if(bd)bd.remove();}
+}
+var gLoaded=false;
+document.getElementById('groupSeg').addEventListener('click',e=>{var b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');grouping=(b.dataset.g==='on');if(grouping&&!gLoaded){exampleGrouped();gLoaded=true;}applyGroupingUI();update();});
+document.getElementById('modeSeg').addEventListener('click',e=>{var b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');mode=b.dataset.mode;document.getElementById('ctOptions').style.display=mode==='ct'?'block':'none';document.getElementById('modeHint').textContent=mode==='ct'?'Enter raw Ct for target and reference (housekeeping) genes. The app computes fold change by ΔΔCt against the chosen control.':'Each row = a sample/group. Each numbered column = a replicate. Bars show the mean across replicates.';loadExample();});
+function segWire(id,key,map){document.getElementById(id).addEventListener('click',e=>{var b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');cfg[key]=b.dataset[map];update();});}
+segWire('chartSeg','chart','t');segWire('colorSeg','color','c');segWire('errSeg','err','e');segWire('sigSeg','sig','s');
+function renderSwatch(){var t=document.getElementById('themeSel').value;document.getElementById('themeSwatch').innerHTML=THEMES[t].slice(0,6).map(c=>'<span style="width:20px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.2);background:'+c+'"></span>').join('');}
+document.getElementById('colorSeg').addEventListener('click',()=>{document.getElementById('themeWrap').style.display=cfg.color==='color'?'block':'none';});
+document.getElementById('themeSel').addEventListener('change',e=>{PALETTE=THEMES[e.target.value]||THEMES.classic;renderSwatch();update();});
+renderSwatch();
+document.getElementById('testSel').addEventListener('change',e=>{var an=e.target.value==='anova';var ph=document.getElementById('phSel');document.getElementById('phTukeyOpt').disabled=!an;if(!an&&ph.value==='tukey')ph.value='holm';document.getElementById('phTag').textContent=an?'ANOVA':'correction';update();});
+document.getElementById('cmpSel').addEventListener('change',e=>{var custom=e.target.value==='custom';document.getElementById('customPairUI').style.display=custom?'block':'none';document.getElementById('gCtrlWrap').style.display=(grouping&&!custom)?'block':'none';document.getElementById('cmpHint').textContent=custom?(grouping?'Add sample pairs (by legend series); brackets are drawn within every group.':'Add specific sample pairs; brackets with significance are drawn above the tallest bar.'):(grouping?'Within each group, compares every sample to the chosen control sample.':'Compares every sample to the control (first row by default).');update();});
+document.getElementById('controlSel').addEventListener('change',update);
+document.getElementById('gControlSel').addEventListener('change',e=>{gControl=parseInt(e.target.value||0,10)||0;update();});
+document.getElementById('effSel').addEventListener('change',update);
+document.getElementById('phSel').addEventListener('change',update);
+['titleIn','xlabIn','ylabIn'].forEach(id=>document.getElementById(id).addEventListener('input',update));
+document.getElementById('dotsChk').addEventListener('change',update);
+document.getElementById('legendChk').addEventListener('change',update);
+document.getElementById('lwIn').addEventListener('input',e=>{cfg.lw=+e.target.value;document.getElementById('lwVal').textContent=cfg.lw.toFixed(1)+'×';update();});
+document.getElementById('fsIn').addEventListener('input',e=>{cfg.fs=+e.target.value;document.getElementById('fsVal').textContent=cfg.fs.toFixed(1)+'×';update();});
+document.getElementById('wIn').addEventListener('input',e=>{cfg.W=Math.max(300,+e.target.value||640);update();});
+document.getElementById('arIn').addEventListener('change',e=>{cfg.ar=+e.target.value;update();});
+// init
+exampleRelative();renderGrids();update();
+</script>
+</body>
+</html>
