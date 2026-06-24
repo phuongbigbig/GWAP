@@ -7,22 +7,23 @@
 <style>
   :root{
     --bg:#5b6675; --bg2:#2f3640; --panel:#ffffff; --ink:#1d2733; --muted:#5d6b7a;
-    --line:#dfe4ea; --accent:#2b6cb0;
+    --line:#dfe4ea; --accent:#2b6cb0; --accentSoft:#e9f1f9;
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
        background:var(--bg);background-image:linear-gradient(to bottom,rgba(0,0,0,0) 55%,rgba(0,0,0,0.28) 100%);
        background-attachment:fixed;color:var(--ink);font-size:14px;line-height:1.45;min-height:100vh}
   header{background:#1d2733;color:#fff;padding:14px 22px;position:relative;overflow:hidden}
-  header h1{margin:0;font-size:18px;font-weight:600;position:relative;z-index:2}
+  header h1{margin:0;font-size:18px;font-weight:600;position:relative;z-index:2;color:#ffe9a8}
   header p{margin:3px 0 0;font-size:12.5px;color:#aab6c2;position:relative;z-index:2}
   #headerDeco{position:absolute;top:0;right:0;height:100%;width:62%;max-width:760px;z-index:1;pointer-events:none}
   .wrap{display:grid;grid-template-columns:380px minmax(0,1fr) 350px;gap:16px;padding:16px;align-items:start}
   @media(max-width:1180px){.wrap{grid-template-columns:1fr 1fr}}
   @media(max-width:760px){.wrap{grid-template-columns:1fr}}
   .col{min-width:0}
-  .panel{background:var(--panel);border:1px solid rgba(0,0,0,.15);border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
-  .panel h2{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .panel{background:var(--panel);border:1px solid rgba(0,0,0,.15);border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.18);position:relative}
+  .panel>h2:first-child{margin:-16px -16px 14px;padding:9px 16px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;
+       color:var(--accent);background:var(--accentSoft);border-bottom:2px solid var(--accent);border-radius:10px 10px 0 0}
   label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
   input[type=text],input[type=number],select{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff;color:var(--ink)}
   input[type=range]{width:100%}
@@ -66,13 +67,24 @@
   details{margin-top:8px}summary{cursor:pointer;color:var(--accent);font-size:12.5px}
   .slabel{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin:10px 0 2px}
   .slabel b{color:var(--ink);font-weight:600}
-  .exportcard{background:#1d2733;border-color:#10161e}
-  .exportcard h2{color:#aab6c2}
-  .exbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .exbtns button{background:#eef2f6;color:#1d2733;border:1px solid #3a4452;font-weight:600;padding:9px 11px;text-align:center}
-  .exbtns button:hover{background:#ffffff}
-  .panel.modal{position:fixed;inset:18px;z-index:200;overflow:auto;box-shadow:0 12px 50px rgba(0,0,0,.5)}
-  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150}
+  .exportcard{background:linear-gradient(135deg,var(--accent),#1d2733);border-color:rgba(0,0,0,.25)}
+  .exportcard>h2:first-child{background:transparent;border:none;margin:0 0 12px;padding:0;color:#ffe9a8;display:flex;align-items:center;gap:8px}
+  .exportcard>h2:first-child svg{opacity:.95}
+  .exbtns{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .exbtns button{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:6px;background:rgba(255,255,255,.95);color:#1d2733;
+       border:none;border-radius:8px;font-weight:600;font-size:12px;padding:10px 8px;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+  .exbtns button:hover{background:#fff;transform:translateY(-1px)}
+  .exbtns button svg{stroke:var(--accent)}
+  .panel.modal{position:fixed;inset:18px;z-index:200;overflow:auto;box-shadow:0 12px 50px rgba(0,0,0,.5);
+       transform-origin:bottom right;animation:growIn .24s cubic-bezier(.2,.7,.3,1)}
+  @keyframes growIn{from{transform:scale(.55);opacity:.25}to{transform:scale(1);opacity:1}}
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150;animation:fadeIn .24s ease}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  #expandBtn{position:absolute;right:12px;bottom:10px;width:34px;height:34px;padding:0;font-size:17px;line-height:1;
+       border-radius:8px;border:1px solid var(--accent);background:var(--accentSoft);color:var(--accent);
+       display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+  #expandBtn:hover{filter:brightness(.96)}
+  .panel.modal #expandBtn{position:fixed;right:30px;bottom:30px}
   table.grid th.grp{background:#e3eaf1;border-bottom:2px solid var(--accent)}
   table.grid td.gname input,table.grid th.grp input{font-weight:700;text-align:center;color:var(--ink);background:transparent;border:none;width:100%;padding:5px 4px}
   table.grid td.gname input:focus,table.grid th.grp input:focus{outline:2px solid var(--accent);outline-offset:-2px;background:#fff}
@@ -81,8 +93,7 @@
   .themeswatch{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.8);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .1s}
   .themeswatch:hover{transform:scale(1.15)}
   .themeswatch.active{outline:2px solid #fff;outline-offset:2px}
-  .copyright{position:fixed;left:50%;transform:translateX(-50%);bottom:8px;font-size:11px;color:rgba(255,255,255,.85);
-       background:rgba(0,0,0,.28);padding:3px 9px;border-radius:6px;pointer-events:none;z-index:50}
+  .copyright{text-align:center;font-size:11px;color:rgba(255,255,255,.8);padding:14px 0 22px;margin-top:6px}
 </style>
 </head>
 <body>
@@ -103,12 +114,12 @@
           <button data-mode="ct">Raw Ct</button>
         </div>
       </div>
-      <div class="hint" id="modeHint">Each row = a sample/group. Each numbered column = a replicate. Bars show the mean across replicates.</div>
+      <div class="hint" id="modeHint">Each row = a sample/group. Each numbered column = a replicate. Bars show the mean across replicates. <b>Tip:</b> copy a block of cells in Excel and paste it onto any cell — values that fall outside the table are ignored.</div>
 
       <div class="ctlrow" style="margin-top:4px">
         <span style="font-size:12px;color:var(--muted)">Grouping:</span>
         <div class="seg" id="groupSeg"><button data-g="off" class="on">Off</button><button data-g="on">On</button></div>
-        <button id="expandBtn" style="margin-left:auto" onclick="toggleExpand()">⤢ Expand</button>
+        <span class="stepper" id="groupStepper" style="display:none"><span>Group</span><button onclick="gAddGroup()" title="Add group">+</button><button class="minus" onclick="gRemoveGroup()" title="Remove group">−</button></span>
       </div>
       <div class="hint" id="groupHint" style="display:none">Groups appear on the x-axis; samples become the legend (by colour/pattern) and are clustered within each group. Stats and comparison brackets run inside each group separately. (Grouping uses relative-expression values.)</div>
 
@@ -138,21 +149,21 @@
       <div id="btnsGrouped" style="display:none">
         <div class="steppers">
           <span class="stepper"><span>Sample</span><button onclick="gAddSeries()" title="Add sample">+</button><button class="minus" onclick="gRemoveSeries()" title="Remove sample">−</button></span>
-          <span class="stepper"><span>Group</span><button onclick="gAddGroup()" title="Add group">+</button><button class="minus" onclick="gRemoveGroup()" title="Remove group">−</button></span>
           <span class="stepper"><span>Replicate</span><button onclick="addRep()" title="Add replicate">+</button><button class="minus" onclick="removeRep()" title="Remove replicate">−</button></span>
         </div>
         <div class="btns"><button onclick="loadExample()">Example data</button></div>
       </div>
       <div class="err" id="dataErr"></div>
+      <button id="expandBtn" onclick="toggleExpand()" title="Expand / collapse the input table">⤢</button>
     </div>
 
     <div class="panel exportcard">
-      <h2>Export</h2>
+      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Export</h2>
       <div class="exbtns">
-        <button onclick="exportSVG()">⬇ Plot · SVG</button>
-        <button onclick="exportPNG()">⬇ Plot · PNG</button>
-        <button onclick="exportTable()">⬇ Stats · CSV</button>
-        <button onclick="exportXLSX()">⬇ Stats · XLSX</button>
+        <button onclick="exportSVG()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Plot · SVG</button>
+        <button onclick="exportPNG()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Plot · PNG</button>
+        <button onclick="exportTable()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Stats · CSV</button>
+        <button onclick="exportXLSX()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Stats · XLSX</button>
       </div>
     </div>
 
@@ -206,7 +217,7 @@
   <!-- CENTER: plot + results -->
   <div class="col">
     <div class="panel">
-      <h2 style="margin:0 0 12px">Plot</h2>
+      <h2>Plot</h2>
       <div class="chartwrap" id="chart"></div>
     </div>
     <div class="panel">
@@ -236,7 +247,7 @@
         <div class="seg" id="chartSeg"><button data-t="bar" class="on">Bar</button><button data-t="box">Box</button><button data-t="violin">Violin</button></div>
       </div>
       <div class="ctlrow"><span style="font-size:12px;color:var(--muted)">Fill:</span>
-        <div class="seg" id="colorSeg"><button data-c="bw" class="on">B/W patterns</button><button data-c="color">Color</button></div>
+        <div class="seg" id="colorSeg"><button data-c="bw" class="on">B/W patterns</button><button data-c="shade">B/W shade</button><button data-c="color">Color</button></div>
       </div>
       <div id="themeWrap" style="display:none">
         <label>Color theme</label>
@@ -375,7 +386,7 @@ function renderGrouped(){
   html+='</tr>';
   gSeries.forEach((sname,si)=>{
     html+='<tr><td class="name"><input value="'+escAttr(sname)+'" oninput="gSetSeries('+si+',this.value)"></td>';
-    gGroups.forEach((g,gi)=>{if(gi)html+='<td class="grpgap"></td>';for(var c=0;c<nRep;c++)html+='<td><input type="number" step="any" value="'+(gData[gi][si][c]??'')+'" oninput="gSetVal('+gi+','+si+','+c+',this.value)"></td>';});
+    gGroups.forEach((g,gi)=>{if(gi)html+='<td class="grpgap"></td>';for(var c=0;c<nRep;c++)html+='<td><input type="number" step="any" value="'+(gData[gi][si][c]??'')+'" oninput="gSetVal('+gi+','+si+','+c+',this.value)" onpaste="pasteGrouped(event,'+gi+','+si+','+c+')"></td>';});
     html+='</tr>';
   });
   html+='</table>';
@@ -395,10 +406,10 @@ function repHeader(){var h='<th class="name">Sample</th>';for(var i=0;i<nRep;i++
 function renderGrids(){
   var label=mode==='ct'?'Target gene Ct':'Relative expression';
   var html='<label style="margin-top:6px">'+label+'</label><table class="grid"><tr>'+repHeader()+'</tr>';
-  samples.forEach((s,r)=>{html+='<tr><td class="name"><input value="'+escAttr(s.name)+'" oninput="setName('+r+',this.value)"></td>';for(var c=0;c<nRep;c++)html+='<td><input type="number" step="any" value="'+(s.target[c]??'')+'" oninput="setVal(\'target\','+r+','+c+',this.value)"></td>';html+='</tr>';});
+  samples.forEach((s,r)=>{html+='<tr><td class="name"><input value="'+escAttr(s.name)+'" oninput="setName('+r+',this.value)"></td>';for(var c=0;c<nRep;c++)html+='<td><input type="number" step="any" value="'+(s.target[c]??'')+'" oninput="setVal(\'target\','+r+','+c+',this.value)" onpaste="pasteGrid(event,\'target\','+r+','+c+')"></td>';html+='</tr>';});
   html+='</table>';document.getElementById('gridTarget').innerHTML=html;
   var hk=document.getElementById('gridHK');
-  if(mode==='ct'){hk.style.display='block';var h2='<label style="margin-top:10px">Reference (housekeeping) Ct</label><table class="grid"><tr>'+repHeader()+'</tr>';samples.forEach((s,r)=>{h2+='<tr><td class="name"><input value="'+escAttr(s.name)+'" disabled style="opacity:.6"></td>';for(var c=0;c<nRep;c++)h2+='<td><input type="number" step="any" value="'+(s.hk[c]??'')+'" oninput="setVal(\'hk\','+r+','+c+',this.value)"></td>';h2+='</tr>';});h2+='</table>';hk.innerHTML=h2;}
+  if(mode==='ct'){hk.style.display='block';var h2='<label style="margin-top:10px">Reference (housekeeping) Ct</label><table class="grid"><tr>'+repHeader()+'</tr>';samples.forEach((s,r)=>{h2+='<tr><td class="name"><input value="'+escAttr(s.name)+'" disabled style="opacity:.6"></td>';for(var c=0;c<nRep;c++)h2+='<td><input type="number" step="any" value="'+(s.hk[c]??'')+'" oninput="setVal(\'hk\','+r+','+c+',this.value)" onpaste="pasteGrid(event,\'hk\','+r+','+c+')"></td>';h2+='</tr>';});h2+='</table>';hk.innerHTML=h2;}
   else{hk.style.display='none';hk.innerHTML='';}
   refreshSampleSelectors();
 }
@@ -406,6 +417,9 @@ function escAttr(s){return String(s).replace(/"/g,'&quot;');}
 function escHtml(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
 function setName(r,v){samples[r].name=v;refreshSampleSelectors();update();}
 function setVal(w,r,c,v){samples[r][w][c]=v;update();}
+function clip2grid(e){var t=(e.clipboardData||window.clipboardData).getData('text');if(!t)return null;var lines=t.replace(/\r/g,'').split('\n');if(lines.length&&lines[lines.length-1]==='')lines.pop();return lines.map(l=>l.split('\t'));}
+function pasteGrid(e,which,r,c){var m=clip2grid(e);if(!m||(m.length===1&&m[0].length===1))return;e.preventDefault();m.forEach((cols,i)=>cols.forEach((val,j)=>{var rr=r+i,cc=c+j;if(rr<samples.length&&cc<nRep)samples[rr][which][cc]=val.trim();}));renderGrids();update();}
+function pasteGrouped(e,gi,si,c){var m=clip2grid(e);if(!m||(m.length===1&&m[0].length===1))return;e.preventDefault();m.forEach((cols,i)=>cols.forEach((val,j)=>{var ss=si+i,cc=c+j;if(gi<gData.length&&ss<gSeries.length&&cc<nRep)gData[gi][ss][cc]=val.trim();}));renderGrouped();update();}
 function addSample(){samples.push(blankRow('sample'+(samples.length+1)));renderGrids();update();}
 function removeSample(){if(samples.length>2){samples.pop();if(controlIdx>=samples.length)controlIdx=0;renderGrids();update();}}
 function addRep(){nRep++;samples.forEach(s=>{s.target.push('');s.hk.push('');});if(grouping){gData.forEach(grp=>grp.forEach(c=>c.push('')));renderGrouped();}else renderGrids();update();}
@@ -516,13 +530,16 @@ function drawElement(v,cx,barW,Y,plotBottom,FS,LW,fill,showDots){
   if(showDots)v.forEach(val=>{var jx=cx+(Math.random()-0.5)*barW*0.45;s+='<circle cx="'+jx.toFixed(1)+'" cy="'+Y(val).toFixed(1)+'" r="'+dotR+'" fill="#222" fill-opacity="0.7"/>';});
   return s;
 }
-function seriesFill(idx){return cfg.color==='color'?PALETTE[idx%PALETTE.length]:'url(#pt'+(idx%7)+')';}
+var gShadeN=1; // number of series, used to spread B/W shades
+function grayFor(idx){if(gShadeN<=1)return '#9a9a9a';var t=idx/(gShadeN-1),v=Math.round(35+t*(238-35));return 'rgb('+v+','+v+','+v+')';}
+function seriesFill(idx){if(cfg.color==='color')return PALETTE[idx%PALETTE.length];if(cfg.color==='shade')return grayFor(idx);return 'url(#pt'+(idx%7)+')';}
 
 function buildSVG(values,stat){
   var FS=cfg.fs, LW=cfg.lw, W=cfg.W, H=Math.round(W/cfg.ar);
   var f=function(px){return (px*FS).toFixed(1);};
   var mL=Math.round(56+22*FS), mR=Math.round(20+6*FS), mT=Math.round(40+16*FS), mB=Math.round(64+26*FS);
   var plotW=W-mL-mR, plotH=H-mT-mB, n=samples.length;
+  gShadeN=n;
   var allPts=values.flat();
   // top value of each drawn element (used for sig-marker placement & axis range)
   var tops=values.map(v=>seriesTopVal(v));
@@ -578,6 +595,7 @@ function buildGroupedSVG(gvals,gstats){
   var f=function(px){return (px*FS).toFixed(1);};
   var mL=Math.round(56+22*FS),mR=Math.round(20+6*FS),mT=Math.round(40+16*FS),mB=Math.round(58+24*FS);
   var plotW=W-mL-mR,plotH=H-mT-mB,G=gGroups.length,S=gSeries.length;
+  gShadeN=S;
   var showDots=document.getElementById('dotsChk').checked;
   var showNS=document.getElementById('nsChk').checked;
   // per (group,series) top values
@@ -838,10 +856,12 @@ function renderPageThemes(){
     return '<div class="themeswatch" data-key="'+k+'" title="'+t.name+'" onclick="applyPageTheme(\''+k+'\')" style="background:linear-gradient(135deg,'+t.accent+' 58%,'+t.deco[3]+' 58%)"></div>';
   }).join('');
 }
+function hexBlend(hex,t){var h=hex.replace('#','');var r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);r=Math.round(r+(255-r)*t);g=Math.round(g+(255-g)*t);b=Math.round(b+(255-b)*t);return 'rgb('+r+','+g+','+b+')';}
 function applyPageTheme(key){
   var t=PAGE_THEMES[key];if(!t)return;
   var root=document.documentElement;
   root.style.setProperty('--accent',t.accent);
+  root.style.setProperty('--accentSoft',hexBlend(t.accent,0.86));
   root.style.setProperty('--bg',t.bg);
   PAGE_DECO=t.deco;
   var old=document.getElementById('headerDeco');if(old)old.remove();
@@ -881,6 +901,7 @@ function applyGroupingUI(){
   document.getElementById('gridHK').style.display=(!grouping&&mode==='ct')?'block':'none';
   document.getElementById('btnsFlat').style.display=grouping?'none':'block';
   document.getElementById('btnsGrouped').style.display=grouping?'block':'none';
+  document.getElementById('groupStepper').style.display=grouping?'inline-flex':'none';
   document.getElementById('modeSeg').style.opacity=grouping?0.45:1;
   document.getElementById('modeSeg').style.pointerEvents=grouping?'none':'auto';
   document.getElementById('ctOptions').style.display=(!grouping&&mode==='ct')?'block':'none';
@@ -892,14 +913,14 @@ function applyGroupingUI(){
 function toggleExpand(){
   expanded=!expanded;
   var p=document.getElementById('dataPanel');
-  document.getElementById('expandBtn').textContent=expanded?'⤡ Collapse':'⤢ Expand';
+  document.getElementById('expandBtn').textContent=expanded?'⤡':'⤢';
   var bd=document.getElementById('inputBackdrop');
   if(expanded){p.classList.add('modal');if(!bd){bd=document.createElement('div');bd.id='inputBackdrop';bd.className='backdrop';bd.onclick=toggleExpand;document.body.appendChild(bd);}}
   else{p.classList.remove('modal');if(bd)bd.remove();}
 }
 var gLoaded=false;
 document.getElementById('groupSeg').addEventListener('click',e=>{var b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');grouping=(b.dataset.g==='on');if(grouping&&!gLoaded){exampleGrouped();gLoaded=true;}applyGroupingUI();update();});
-document.getElementById('modeSeg').addEventListener('click',e=>{var b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');mode=b.dataset.mode;document.getElementById('ctOptions').style.display=mode==='ct'?'block':'none';document.getElementById('modeHint').textContent=mode==='ct'?'Enter raw Ct for target and reference (housekeeping) genes. The app computes fold change by ΔΔCt against the chosen control.':'Each row = a sample/group. Each numbered column = a replicate. Bars show the mean across replicates.';loadExample();});
+document.getElementById('modeSeg').addEventListener('click',e=>{var b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');mode=b.dataset.mode;document.getElementById('ctOptions').style.display=mode==='ct'?'block':'none';document.getElementById('modeHint').innerHTML=(mode==='ct'?'Enter raw Ct for target and reference (housekeeping) genes. The app computes fold change by ΔΔCt against the chosen control.':'Each row = a sample/group. Each numbered column = a replicate. Bars show the mean across replicates.')+' <b>Tip:</b> paste a block of cells from Excel onto any cell — out-of-range values are ignored.';loadExample();});
 function segWire(id,key,map){document.getElementById(id).addEventListener('click',e=>{var b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');cfg[key]=b.dataset[map];update();});}
 segWire('chartSeg','chart','t');segWire('colorSeg','color','c');segWire('errSeg','err','e');segWire('sigSeg','sig','s');
 function renderSwatch(){var t=document.getElementById('themeSel').value;document.getElementById('themeSwatch').innerHTML=THEMES[t].slice(0,6).map(c=>'<span style="width:20px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.2);background:'+c+'"></span>').join('');}
@@ -921,7 +942,7 @@ document.getElementById('fsIn').addEventListener('input',e=>{cfg.fs=+e.target.va
 document.getElementById('wIn').addEventListener('input',e=>{cfg.W=Math.max(300,+e.target.value||640);update();});
 document.getElementById('arIn').addEventListener('change',e=>{cfg.ar=+e.target.value;update();});
 // init
-renderPageThemes();applyPageTheme('blue');
+renderPageThemes();applyPageTheme('graphite');
 exampleRelative();renderGrids();update();
 </script>
 </body>
