@@ -4,20 +4,24 @@ A single-file, browser-based tool for turning qPCR data into publication-ready f
 
 ## Features
 
-- **Manual data entry** in an editable table: rows = samples, columns = replicates (biological or technical). Missing replicate cells are handled correctly (a blank is ignored, not treated as zero).
+- **Manual data entry** in an editable table: rows = samples, columns = replicates (biological or technical). Add or remove samples and replicates with large +/− stepper buttons. Missing replicate cells are handled correctly (a blank is ignored, not treated as zero).
 - **Two input modes**
   - *Relative expression* — paste fold-change / relative values directly.
   - *Raw Ct* — enter target and reference (housekeeping) Ct values; the app computes fold change by the ΔΔCt method against a chosen control sample, with a selectable amplification efficiency.
-- **Grouping mode** (3-level data): groups on the x-axis, samples shown in a legend by colour/pattern and clustered within each group — like a typical multi-gene / multi-condition figure. Statistics and comparison brackets run **within each group independently**.
+- **Grouping mode** (3-level data): groups on the x-axis, samples shown in a legend by colour/pattern and clustered within each group — like a typical multi-gene / multi-condition figure. Statistics and comparison brackets run **within each group independently**. The wide input table can be popped out to a full-screen editor.
 - **Statistics on demand**
   - One-way ANOVA followed by a post-hoc test: **Tukey HSD** (all pairs), **Holm**, **Bonferroni**, or uncorrected Fisher LSD.
   - **Welch's t-test** for two-group comparisons (with optional Holm/Bonferroni correction across multiple pairs).
   - Compare *each sample vs. a control*, or define *custom pairs*.
-  - Significance shown as stars (ns / * / ** / ***) or exact p-values; brackets are drawn above the tallest bar so they never overlap the data.
+  - Significance shown as stars (ns / * / ** / ***) or exact p-values; brackets are drawn above the tallest bar so they never overlap the data. Non-significant marks can be hidden with one toggle.
+  - A **Recalculate** button to force-refresh the results after editing data.
 - **Plot types**: bar, box, or violin.
 - **Black/white patterns** or **colour**, including ggsci scientific-journal palettes (NPG, AAAS, NEJM, Lancet, JAMA, JCO, BMJ, UChicago, D3).
-- **Full customisation**: title and axis titles, SEM vs SD error bars, replicate-point overlay, line weight, font size, output width and aspect ratio, and an optional legend toggle (grouped plots).
-- **Export** to vector **SVG** and high-resolution **PNG**.
+- **Full customisation**: title and axis titles, SEM vs SD error bars, replicate-point overlay, line weight, font size, output width and aspect ratio, and optional legend / ns-mark toggles.
+- **Seven page colour themes** (Blue, Teal, Violet, Crimson, Green, Amber, Graphite) that re-tint the interface highlight, background, and header decoration together. (Separate from the plot colour palettes.)
+- **Export**
+  - Plot as vector **SVG** and high-resolution **PNG**.
+  - Statistical results table as **CSV** and **XLSX** (a real Excel file, built with no external libraries; numbers stay numeric).
 - A built-in **"Statistics explained"** panel that describes the test and correction currently in use, when to use them, caveats, and APA references.
 
 ## Usage
@@ -25,7 +29,7 @@ A single-file, browser-based tool for turning qPCR data into publication-ready f
 1. Open the HTML file in any modern browser (Chrome, Firefox, Edge, Safari).
 2. Click **Example data** to see a working figure, or type your own values.
 3. Choose the test, comparison design, plot type, and appearance options.
-4. Export the figure as SVG (for editing in Illustrator/Inkscape) or PNG.
+4. From the **Export** panel, save the figure as SVG/PNG or the statistics table as CSV/XLSX.
 
 Everything runs locally in your browser — your data never leaves your computer.
 

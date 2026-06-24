@@ -11,10 +11,12 @@
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-       background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
-  header{background:#1d2733;color:#fff;padding:14px 22px}
-  header h1{margin:0;font-size:18px;font-weight:600}
-  header p{margin:3px 0 0;font-size:12.5px;color:#aab6c2}
+       background:var(--bg);background-image:linear-gradient(to bottom,rgba(0,0,0,0) 55%,rgba(0,0,0,0.28) 100%);
+       background-attachment:fixed;color:var(--ink);font-size:14px;line-height:1.45;min-height:100vh}
+  header{background:#1d2733;color:#fff;padding:14px 22px;position:relative;overflow:hidden}
+  header h1{margin:0;font-size:18px;font-weight:600;position:relative;z-index:2}
+  header p{margin:3px 0 0;font-size:12.5px;color:#aab6c2;position:relative;z-index:2}
+  #headerDeco{position:absolute;top:0;right:0;height:100%;width:62%;max-width:760px;z-index:1;pointer-events:none}
   .wrap{display:grid;grid-template-columns:380px minmax(0,1fr) 350px;gap:16px;padding:16px;align-items:start}
   @media(max-width:1180px){.wrap{grid-template-columns:1fr 1fr}}
   @media(max-width:760px){.wrap{grid-template-columns:1fr}}
@@ -30,6 +32,15 @@
   button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
   button.primary:hover{background:#255a96}
   .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .steppers{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;align-items:center}
+  .stepper{display:inline-flex;align-items:center;gap:6px}
+  .stepper>span{font-size:12.5px;color:var(--muted);font-weight:600;margin-right:1px}
+  .stepper button{width:34px;height:34px;padding:0;font-size:22px;line-height:1;font-weight:600;border-radius:8px;
+       display:inline-flex;align-items:center;justify-content:center;border:1px solid #bcd3ea;background:#e8f1fb;color:#1f5fa0}
+  .stepper button:hover{background:#d6e7f8}
+  .stepper button:active{background:#c4dbf3}
+  .stepper button.minus{border-color:#e6cdbc;background:#fbeee6;color:#a85a28}
+  .stepper button.minus:hover{background:#f6e0d2}
   table.grid{border-collapse:collapse;width:100%;margin-top:8px}
   table.grid th,table.grid td{border:1px solid var(--line);padding:0}
   table.grid th{background:#f0f3f6;font-size:11px;color:var(--muted);padding:5px 6px;font-weight:600}
@@ -45,7 +56,7 @@
   #chart svg{max-width:100%;height:auto}
   .pairlist .pair{display:inline-flex;align-items:center;gap:6px;background:#eef2f6;border-radius:14px;padding:3px 10px;margin:3px 4px 0 0;font-size:12px}
   .pairlist .pair button{border:none;background:transparent;padding:0 2px;font-size:14px;color:#c05621}
-  .statsbox{font-size:12.5px;max-height:260px;overflow:auto}
+  .statsbox{font-size:12.5px;max-height:312px;overflow:auto}
   .statsbox table{border-collapse:collapse;width:100%}
   .statsbox th,.statsbox td{border-bottom:1px solid var(--line);padding:5px 7px;text-align:left}
   .statsbox th{color:var(--muted);font-weight:600}
@@ -55,18 +66,27 @@
   details{margin-top:8px}summary{cursor:pointer;color:var(--accent);font-size:12.5px}
   .slabel{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin:10px 0 2px}
   .slabel b{color:var(--ink);font-weight:600}
+  .exportcard{background:#1d2733;border-color:#10161e}
+  .exportcard h2{color:#aab6c2}
+  .exbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .exbtns button{background:#eef2f6;color:#1d2733;border:1px solid #3a4452;font-weight:600;padding:9px 11px;text-align:center}
+  .exbtns button:hover{background:#ffffff}
   .panel.modal{position:fixed;inset:18px;z-index:200;overflow:auto;box-shadow:0 12px 50px rgba(0,0,0,.5)}
   .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150}
   table.grid th.grp{background:#e3eaf1;border-bottom:2px solid var(--accent)}
   table.grid td.gname input,table.grid th.grp input{font-weight:700;text-align:center;color:var(--ink);background:transparent;border:none;width:100%;padding:5px 4px}
   table.grid td.gname input:focus,table.grid th.grp input:focus{outline:2px solid var(--accent);outline-offset:-2px;background:#fff}
   table.grid th.grpgap,table.grid td.grpgap{border:none;width:10px;background:transparent}
-  .copyright{position:fixed;left:12px;bottom:8px;font-size:11px;color:rgba(255,255,255,.85);
+  #pageThemePanel{margin:4px 0 28px}
+  .themeswatch{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.8);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .1s}
+  .themeswatch:hover{transform:scale(1.15)}
+  .themeswatch.active{outline:2px solid #fff;outline-offset:2px}
+  .copyright{position:fixed;left:50%;transform:translateX(-50%);bottom:8px;font-size:11px;color:rgba(255,255,255,.85);
        background:rgba(0,0,0,.28);padding:3px 9px;border-radius:6px;pointer-events:none;z-index:50}
 </style>
 </head>
 <body>
-<header>
+<header id="appHeader">
   <h1>qPCR Bar Plot Visualizer</h1>
   <p>Manual data entry · ANOVA + Tukey HSD / Dunnett-style controls · publication-ready B/W or color plots · SVG &amp; PNG export</p>
 </header>
@@ -108,23 +128,32 @@
         <div id="gridGrouped" style="display:none"></div>
       </div>
 
-      <div class="btns" id="btnsFlat">
-        <button onclick="addSample()">+ Sample</button>
-        <button onclick="removeSample()">− Sample</button>
-        <button onclick="addRep()">+ Replicate</button>
-        <button onclick="removeRep()">− Replicate</button>
-        <button onclick="loadExample()">Example data</button>
+      <div id="btnsFlat">
+        <div class="steppers">
+          <span class="stepper"><span>Sample</span><button onclick="addSample()" title="Add sample">+</button><button class="minus" onclick="removeSample()" title="Remove sample">−</button></span>
+          <span class="stepper"><span>Replicate</span><button onclick="addRep()" title="Add replicate">+</button><button class="minus" onclick="removeRep()" title="Remove replicate">−</button></span>
+        </div>
+        <div class="btns"><button onclick="loadExample()">Example data</button></div>
       </div>
-      <div class="btns" id="btnsGrouped" style="display:none">
-        <button onclick="gAddSeries()">+ Sample</button>
-        <button onclick="gRemoveSeries()">− Sample</button>
-        <button onclick="gAddGroup()">+ Group</button>
-        <button onclick="gRemoveGroup()">− Group</button>
-        <button onclick="addRep()">+ Replicate</button>
-        <button onclick="removeRep()">− Replicate</button>
-        <button onclick="loadExample()">Example data</button>
+      <div id="btnsGrouped" style="display:none">
+        <div class="steppers">
+          <span class="stepper"><span>Sample</span><button onclick="gAddSeries()" title="Add sample">+</button><button class="minus" onclick="gRemoveSeries()" title="Remove sample">−</button></span>
+          <span class="stepper"><span>Group</span><button onclick="gAddGroup()" title="Add group">+</button><button class="minus" onclick="gRemoveGroup()" title="Remove group">−</button></span>
+          <span class="stepper"><span>Replicate</span><button onclick="addRep()" title="Add replicate">+</button><button class="minus" onclick="removeRep()" title="Remove replicate">−</button></span>
+        </div>
+        <div class="btns"><button onclick="loadExample()">Example data</button></div>
       </div>
       <div class="err" id="dataErr"></div>
+    </div>
+
+    <div class="panel exportcard">
+      <h2>Export</h2>
+      <div class="exbtns">
+        <button onclick="exportSVG()">⬇ Plot · SVG</button>
+        <button onclick="exportPNG()">⬇ Plot · PNG</button>
+        <button onclick="exportTable()">⬇ Stats · CSV</button>
+        <button onclick="exportXLSX()">⬇ Stats · XLSX</button>
+      </div>
     </div>
 
     <div class="panel">
@@ -167,25 +196,28 @@
         <div class="pairlist" id="pairList" style="margin-top:6px"></div>
       </div>
       <div class="hint" id="cmpHint">Compares every sample to the control (first row by default). Tukey computes all pairs; vs-control results are shown.</div>
+      <div class="btns" style="margin-top:12px">
+        <button class="primary" style="width:100%;padding:9px" onclick="recalculate()">↻ Recalculate statistics</button>
+      </div>
+      <div class="hint" id="recalcHint" style="text-align:right"></div>
     </div>
   </div>
 
   <!-- CENTER: plot + results -->
   <div class="col">
     <div class="panel">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h2 style="margin:0">Plot</h2>
-        <div class="btns" style="margin:0">
-          <button class="primary" onclick="exportSVG()">⬇ SVG</button>
-          <button onclick="exportPNG()">⬇ PNG</button>
-        </div>
-      </div>
-      <div class="chartwrap" id="chart" style="margin-top:12px"></div>
+      <h2 style="margin:0 0 12px">Plot</h2>
+      <div class="chartwrap" id="chart"></div>
     </div>
     <div class="panel">
       <h2>Statistical results</h2>
       <div class="statsbox" id="stats"></div>
-      <details><summary>Methods &amp; notes</summary><div class="hint" id="methodNotes"></div></details>
+      <details open><summary>Methods &amp; notes</summary><div class="hint" id="methodNotes" style="max-height:200px;overflow:auto"></div></details>
+    </div>
+
+    <div id="pageThemePanel">
+      <div style="text-align:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:7px">Page colour theme</div>
+      <div id="pageThemeRow" style="display:flex;flex-wrap:wrap;gap:9px;justify-content:center"></div>
     </div>
   </div>
 
@@ -236,6 +268,7 @@
       </div>
       <label style="margin-top:6px"><input type="checkbox" id="dotsChk" style="width:auto;margin-right:6px">Overlay replicate points</label>
       <label><input type="checkbox" id="legendChk" checked style="width:auto;margin-right:6px">Show legend (grouped plots)</label>
+      <label><input type="checkbox" id="nsChk" checked style="width:auto;margin-right:6px">Show non-significant (ns) marks</label>
 
       <div class="slabel"><span>Line weight</span><b id="lwVal">1.0×</b></div>
       <input type="range" id="lwIn" min="0.4" max="3" step="0.1" value="1">
@@ -324,12 +357,12 @@ function computeValues(){
 }
 
 /* ---- grouped data ---- */
-function exampleGrouped(){nRep=3;gControl=0;gPairs=[[0,1]];
-  gSeries=['TBG','JTG'];gGroups=['mir-93','mir-20','mir-81'];
+function exampleGrouped(){nRep=3;gControl=0;gPairs=[[0,1],[0,2]];
+  gSeries=['DMSO','Drug_1','Drug_2'];gGroups=['mir-93','mir-20','mir-81'];
   gData=[
-    [[0.040,0.046,0.050],[0.050,0.060,0.071]],
-    [[0.025,0.034,0.043],[0.028,0.037,0.046]],
-    [[0.055,0.068,0.081],[0.013,0.016,0.019]]
+    [[1.00,0.95,1.05],[1.45,1.60,1.30],[0.80,0.70,0.92]],
+    [[1.00,1.08,0.92],[1.05,0.95,1.12],[1.10,1.25,0.98]],
+    [[1.00,1.05,0.96],[2.30,2.10,2.25],[0.40,0.32,0.46]]
   ];gEnsure();}
 function computeGroupedValues(){gEnsure();return gData.map(grp=>grp.map(cell=>cell.filter(v=>v!==null&&v!==undefined&&String(v).trim()!==''&&isFinite(Number(v))).map(Number)));}
 function renderGrouped(){
@@ -518,11 +551,12 @@ function buildSVG(values,stat){
     s+='<text x="'+cx+'" y="'+(mT+plotH+16)+'" text-anchor="end" font-family="Arial" font-size="'+f(12)+'" transform="rotate(-30 '+cx+' '+(mT+plotH+16)+')">'+escHtml(samples[i].name)+'</text>';
   }
   // significance — vs control: stars above each bar
+  var showNS=document.getElementById('nsChk').checked;
   if(!custom){
-    for(var i=0;i<n;i++){if(i===controlIdx)continue;var p=stat.vsControl[i];if(p===undefined)continue;var label=cfg.sig==='pval'?fmtP(p):stars(p);var yy=Y(tops[i])-8;s+='<text x="'+X(i)+'" y="'+yy.toFixed(1)+'" text-anchor="middle" font-family="Arial" font-size="'+f(cfg.sig==='pval'?11:15)+'" font-weight="700">'+label+'</text>';}
+    for(var i=0;i<n;i++){if(i===controlIdx)continue;var p=stat.vsControl[i];if(p===undefined)continue;if(!showNS&&p>0.05)continue;var label=cfg.sig==='pval'?fmtP(p):stars(p);var yy=Y(tops[i])-8;s+='<text x="'+X(i)+'" y="'+yy.toFixed(1)+'" text-anchor="middle" font-family="Arial" font-size="'+f(cfg.sig==='pval'?11:15)+'" font-weight="700">'+label+'</text>';}
   } else {
     // brackets stacked ABOVE the highest bar (never overlapping bars)
-    stat.brackets.forEach((b,lvl)=>{
+    stat.brackets.filter(b=>showNS||b.padj<=0.05).forEach((b,lvl)=>{
       var i1=Math.min(b.a,b.b),i2=Math.max(b.a,b.b);
       var val=globalMax+gap*(lvl+1);
       var by=Y(val);
@@ -545,13 +579,14 @@ function buildGroupedSVG(gvals,gstats){
   var mL=Math.round(56+22*FS),mR=Math.round(20+6*FS),mT=Math.round(40+16*FS),mB=Math.round(58+24*FS);
   var plotW=W-mL-mR,plotH=H-mT-mB,G=gGroups.length,S=gSeries.length;
   var showDots=document.getElementById('dotsChk').checked;
+  var showNS=document.getElementById('nsChk').checked;
   // per (group,series) top values
   var topV=gvals.map(grp=>grp.map(v=>seriesTopVal(v)));
   var groupMax=topV.map((arr,gi)=>{var extra=showDots?gvals[gi].flat():[];return Math.max.apply(null,arr.concat(extra,0.0001));});
   var gMaxAll=Math.max.apply(null,groupMax.concat(0.0001));
   var gapU=Math.max(gMaxAll,1e-6)*0.11;
   var need=gMaxAll*1.16;
-  gstats.forEach((st,gi)=>{var nb=st.rows.length;if(nb)need=Math.max(need,groupMax[gi]+gapU*(nb+0.9));});
+  gstats.forEach((st,gi)=>{var nb=st.rows.filter(r=>showNS||r.padj<=0.05).length;if(nb)need=Math.max(need,groupMax[gi]+gapU*(nb+0.9));});
   var yMax=niceMax(need);
   var slot=plotW/G;
   var clusterW=slot*0.80, step=clusterW/S, barW=Math.min(58,step*0.82);
@@ -574,7 +609,7 @@ function buildGroupedSVG(gvals,gstats){
     }
     s+='<text x="'+slotC(gi)+'" y="'+(mT+plotH+18)+'" text-anchor="middle" font-family="Arial" font-size="'+f(12.5)+'" font-weight="700">'+escHtml(gGroups[gi])+'</text>';
     // within-group brackets (each comparison)
-    gstats[gi].rows.forEach((r,lvl)=>{
+    gstats[gi].rows.filter(r=>showNS||r.padj<=0.05).forEach((r,lvl)=>{
       var x1=gx(gi,r.a),x2=gx(gi,r.b),val=groupMax[gi]+gapU*(lvl+1),by=Y(val);
       var label=cfg.sig==='pval'?fmtP(r.padj):stars(r.padj),tick=6;
       s+='<path d="M'+x1+','+(by+tick)+' V'+by+' H'+x2+' V'+(by+tick)+'" fill="none" stroke="#000" stroke-width="'+sw+'"/>';
@@ -691,6 +726,7 @@ function update(){
     var gvals=computeGroupedValues();
     if(gvals.some(grp=>grp.some(v=>v.length<2)))err.textContent='Each sample in each group needs ≥2 numeric replicates for statistics.';
     var gstats=runGroupedStats(gvals);
+    lastResult={mode:'grouped',gstats:gstats};
     document.getElementById('chart').innerHTML=buildGroupedSVG(gvals,gstats);
     renderGroupedStatsTable(gvals,gstats);
     return;
@@ -699,8 +735,18 @@ function update(){
   var values=computeValues();
   if(values.some(v=>v.length<2))err.textContent='Each sample needs ≥2 numeric replicates for statistics.';
   var stat=runStats(values);
+  lastResult={mode:'flat',stat:stat};
   document.getElementById('chart').innerHTML=buildSVG(values,stat);
   renderStatsTable(values,stat);
+}
+var lastResult=null;
+function recalculate(){
+  update();
+  var h=document.getElementById('recalcHint');
+  var t=new Date().toLocaleTimeString();
+  h.textContent='Recalculated at '+t;
+  h.style.color='#2f855a';
+  setTimeout(()=>{h.style.color='';h.style.opacity='0.7';},150);
 }
 
 /* ===================== CUSTOM PAIRS ===================== */
@@ -714,6 +760,117 @@ function download(blob,name){var url=URL.createObjectURL(blob),a=document.create
 function fileBase(){return (document.getElementById('titleIn').value||'qpcr').replace(/[^\w\-]+/g,'_');}
 function exportSVG(){download(new Blob([currentSVGString()],{type:'image/svg+xml'}),fileBase()+'.svg');}
 function exportPNG(){var svgStr=currentSVGString(),svg=document.getElementById('theSVG'),w=+svg.getAttribute('width'),h=+svg.getAttribute('height'),scale=3,img=new Image(),blob=new Blob([svgStr],{type:'image/svg+xml;charset=utf-8'}),url=URL.createObjectURL(blob);img.onload=function(){var c=document.createElement('canvas');c.width=w*scale;c.height=h*scale;var ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.setTransform(scale,0,0,scale,0,0);ctx.drawImage(img,0,0);URL.revokeObjectURL(url);c.toBlob(b=>download(b,fileBase()+'.png'),'image/png');};img.onerror=function(){alert('PNG export failed; SVG still works.');URL.revokeObjectURL(url);};img.src=url;}
+function csvCell(x){x=String(x);return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x;}
+// shared matrix of statistical results; numbers stay numeric (rounded), text stays text
+function buildStatsMatrix(){
+  if(!lastResult)return null;
+  var rows=[],rnd=function(v,d){return (v==null||isNaN(v))?'':+(+v).toFixed(d);};
+  if(lastResult.mode==='grouped'){
+    rows.push(['Group','Comparison','Method','t','df','p_raw','p_adj','Significance','ANOVA_F','ANOVA_df1','ANOVA_df2','ANOVA_p']);
+    lastResult.gstats.forEach((st,gi)=>{var an=st.anova;
+      if(!st.rows.length){rows.push([gGroups[gi],'','','','','','','',an?rnd(an.F,3):'',an?an.dfb:'',an?an.dfw:'',an?rnd(an.p,5):'']);}
+      st.rows.forEach((r,k)=>{rows.push([gGroups[gi],gSeries[r.a]+' vs '+gSeries[r.b],r.method,rnd(r.t,3),rnd(r.df,1),(r.method==='Tukey'?'':rnd(r.praw,5)),rnd(r.padj,5),stars(r.padj),(k===0&&an)?rnd(an.F,3):'',(k===0&&an)?an.dfb:'',(k===0&&an)?an.dfw:'',(k===0&&an)?rnd(an.p,5):'']);});
+    });
+  } else {
+    var st=lastResult.stat,an=st.anova;
+    rows.push(['Comparison','Method','t','df','p_raw','p_adj','Significance']);
+    if(an)rows.push(['One-way ANOVA','F('+an.dfb+','+an.dfw+')',rnd(an.F,3),'','',rnd(an.p,5),stars(an.p)]);
+    st.rows.forEach(r=>rows.push([samples[r.a].name+' vs '+samples[r.b].name,r.method,rnd(r.t,3),rnd(r.df,1),(r.method==='Tukey'?'':rnd(r.praw,5)),rnd(r.padj,5),stars(r.padj)]));
+  }
+  return rows;
+}
+function exportTable(){
+  var rows=buildStatsMatrix();if(!rows){alert('No statistical results to export yet.');return;}
+  var csv=rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
+  download(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}),fileBase()+'_stats.csv');
+}
+/* ---- minimal XLSX writer (stored ZIP, no external libraries) ---- */
+function crc32(b){var t=crc32.t;if(!t){t=crc32.t=[];for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}}var crc=0xFFFFFFFF;for(var i=0;i<b.length;i++)crc=(crc>>>8)^t[(crc^b[i])&0xFF];return (crc^0xFFFFFFFF)>>>0;}
+function zipStore(files){
+  var enc=new TextEncoder(),parts=[],central=[],off=0;
+  function u16(n){return [n&255,(n>>8)&255];}function u32(n){return [n&255,(n>>8)&255,(n>>16)&255,(n>>24)&255];}
+  files.forEach(f=>{var data=typeof f.data==='string'?enc.encode(f.data):f.data,nm=enc.encode(f.name),crc=crc32(data);
+    var lh=[].concat([80,75,3,4],u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(nm.length),u16(0));
+    parts.push(new Uint8Array(lh),nm,data);
+    central.push({h:[].concat([80,75,1,2],u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(nm.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(off)),nm:nm});
+    off+=lh.length+nm.length+data.length;});
+  var cdOff=off,cd=[];central.forEach(c=>{cd.push(new Uint8Array(c.h),c.nm);off+=c.h.length+c.nm.length;});
+  var end=new Uint8Array([].concat([80,75,5,6],u16(0),u16(0),u16(files.length),u16(files.length),u32(off-cdOff),u32(cdOff),u16(0)));
+  return new Blob(parts.concat(cd,[end]),{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+function xmlEsc(s){return String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function colL(n){var s='';n++;while(n>0){var m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=(n-m-1)/26;}return s;}
+function exportXLSX(){
+  var rows=buildStatsMatrix();if(!rows){alert('No statistical results to export yet.');return;}
+  var sd='';
+  rows.forEach((row,ri)=>{var cells='';row.forEach((cell,ci)=>{if(cell===''||cell==null)return;var ref=colL(ci)+(ri+1);
+    if(typeof cell==='number'&&isFinite(cell))cells+='<c r="'+ref+'"><v>'+cell+'</v></c>';
+    else cells+='<c r="'+ref+'" t="inlineStr"><is><t xml:space="preserve">'+xmlEsc(cell)+'</t></is></c>';});
+    sd+='<row r="'+(ri+1)+'">'+cells+'</row>';});
+  var sheet='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'+sd+'</sheetData></worksheet>';
+  var wb='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Stats" sheetId="1" r:id="rId1"/></sheets></workbook>';
+  var wbRels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>';
+  var rels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+  var ct='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>';
+  var blob=zipStore([
+    {name:'[Content_Types].xml',data:ct},
+    {name:'_rels/.rels',data:rels},
+    {name:'xl/workbook.xml',data:wb},
+    {name:'xl/_rels/workbook.xml.rels',data:wbRels},
+    {name:'xl/worksheets/sheet1.xml',data:sheet}
+  ]);
+  download(blob,fileBase()+'_stats.xlsx');
+}
+/* ---- page colour themes (highlight + background + header decoration) ---- */
+var PAGE_THEMES={
+ blue:    {name:'Blue',    accent:'#2b6cb0', bg:'#5b6675', deco:['#1c4f8a','#2b6cb0','#3b82c4','#5a9bd4','#7fb3df','#a9cce8']},
+ teal:    {name:'Teal',    accent:'#0e8a7d', bg:'#4f6a68', deco:['#0a5d54','#0e8a7d','#16a99a','#4cc3b6','#84d8cf','#bfeae4']},
+ violet:  {name:'Violet',  accent:'#6b46c1', bg:'#5f5775', deco:['#4c2e96','#6b46c1','#855fd6','#a285e0','#c0aceb','#ddd2f4']},
+ crimson: {name:'Crimson', accent:'#c0392b', bg:'#6e5658', deco:['#8f231a','#c0392b','#d65f53','#e2867d','#edb1ab','#f6d8d4']},
+ green:   {name:'Green',   accent:'#2f855a', bg:'#566a5e', deco:['#1f5d3e','#2f855a','#3fa873','#6cc095','#9cd6b8','#cdeadd']},
+ amber:   {name:'Amber',   accent:'#b7791f', bg:'#6b6353', deco:['#8a5a12','#b7791f','#d4942f','#e3b15f','#eecc93','#f7e6c7']},
+ graphite:{name:'Graphite',accent:'#475569', bg:'#5c636d', deco:['#2f3a48','#475569','#64748b','#8a97a8','#b4bdca','#dde2e9']}
+};
+var PAGE_DECO=PAGE_THEMES.blue.deco;
+function renderPageThemes(){
+  var row=document.getElementById('pageThemeRow');if(!row)return;
+  row.innerHTML=Object.keys(PAGE_THEMES).map(k=>{var t=PAGE_THEMES[k];
+    return '<div class="themeswatch" data-key="'+k+'" title="'+t.name+'" onclick="applyPageTheme(\''+k+'\')" style="background:linear-gradient(135deg,'+t.accent+' 58%,'+t.deco[3]+' 58%)"></div>';
+  }).join('');
+}
+function applyPageTheme(key){
+  var t=PAGE_THEMES[key];if(!t)return;
+  var root=document.documentElement;
+  root.style.setProperty('--accent',t.accent);
+  root.style.setProperty('--bg',t.bg);
+  PAGE_DECO=t.deco;
+  var old=document.getElementById('headerDeco');if(old)old.remove();
+  makeHeaderDeco();
+  var sw=document.querySelectorAll('#pageThemeRow .themeswatch');
+  for(var i=0;i<sw.length;i++)sw[i].classList.toggle('active',sw[i].dataset.key===key);
+}
+
+/* ---- header geometric decoration (triangle mosaic, page hue) ---- */
+function makeHeaderDeco(){
+  var hd=document.getElementById('appHeader');if(!hd)return;
+  var W=760,H=84,cols=15,rows=3,cw=W/cols,ch=H/rows;
+  var blues=(typeof PAGE_DECO!=='undefined'&&PAGE_DECO)?PAGE_DECO:['#1c4f8a','#2b6cb0','#3b82c4','#5a9bd4','#7fb3df','#a9cce8'];
+  function rc(){return blues[Math.floor(Math.random()*blues.length)];}
+  var s='<svg id="headerDeco" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">';
+  for(var r=0;r<rows;r++)for(var c=0;c<cols;c++){
+    var x=c*cw,y=r*ch,op=Math.min(1,0.12+(c/cols)*1.05); // fade out toward the left
+    // two triangles per cell, random orientation
+    if(Math.random()<0.5){
+      s+='<polygon points="'+x+','+y+' '+(x+cw)+','+y+' '+x+','+(y+ch)+'" fill="'+rc()+'" fill-opacity="'+op.toFixed(2)+'"/>';
+      s+='<polygon points="'+(x+cw)+','+y+' '+(x+cw)+','+(y+ch)+' '+x+','+(y+ch)+'" fill="'+rc()+'" fill-opacity="'+op.toFixed(2)+'"/>';
+    }else{
+      s+='<polygon points="'+x+','+y+' '+(x+cw)+','+y+' '+(x+cw)+','+(y+ch)+'" fill="'+rc()+'" fill-opacity="'+op.toFixed(2)+'"/>';
+      s+='<polygon points="'+x+','+y+' '+(x+cw)+','+(y+ch)+' '+x+','+(y+ch)+'" fill="'+rc()+'" fill-opacity="'+op.toFixed(2)+'"/>';
+    }
+  }
+  s+='</svg>';
+  hd.insertAdjacentHTML('beforeend',s);
+}
 
 /* ===================== WIRING ===================== */
 function loadExample(){if(grouping){exampleGrouped();renderGrouped();}else{if(mode==='ct')exampleCt();else exampleRelative();renderGrids();}update();}
@@ -722,8 +879,8 @@ function applyGroupingUI(){
   document.getElementById('gridTarget').style.display=grouping?'none':'block';
   document.getElementById('gridGrouped').style.display=grouping?'block':'none';
   document.getElementById('gridHK').style.display=(!grouping&&mode==='ct')?'block':'none';
-  document.getElementById('btnsFlat').style.display=grouping?'none':'flex';
-  document.getElementById('btnsGrouped').style.display=grouping?'flex':'none';
+  document.getElementById('btnsFlat').style.display=grouping?'none':'block';
+  document.getElementById('btnsGrouped').style.display=grouping?'block':'none';
   document.getElementById('modeSeg').style.opacity=grouping?0.45:1;
   document.getElementById('modeSeg').style.pointerEvents=grouping?'none':'auto';
   document.getElementById('ctOptions').style.display=(!grouping&&mode==='ct')?'block':'none';
@@ -758,11 +915,13 @@ document.getElementById('phSel').addEventListener('change',update);
 ['titleIn','xlabIn','ylabIn'].forEach(id=>document.getElementById(id).addEventListener('input',update));
 document.getElementById('dotsChk').addEventListener('change',update);
 document.getElementById('legendChk').addEventListener('change',update);
+document.getElementById('nsChk').addEventListener('change',update);
 document.getElementById('lwIn').addEventListener('input',e=>{cfg.lw=+e.target.value;document.getElementById('lwVal').textContent=cfg.lw.toFixed(1)+'×';update();});
 document.getElementById('fsIn').addEventListener('input',e=>{cfg.fs=+e.target.value;document.getElementById('fsVal').textContent=cfg.fs.toFixed(1)+'×';update();});
 document.getElementById('wIn').addEventListener('input',e=>{cfg.W=Math.max(300,+e.target.value||640);update();});
 document.getElementById('arIn').addEventListener('change',e=>{cfg.ar=+e.target.value;update();});
 // init
+renderPageThemes();applyPageTheme('blue');
 exampleRelative();renderGrids();update();
 </script>
 </body>
