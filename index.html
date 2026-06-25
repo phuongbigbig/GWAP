@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>qPCR Bar Plot Visualizer</title>
+<title>Group-wise Analysis Platform (GWAP)</title>
 <style>
   :root{
     --bg:#5b6675; --bg2:#2f3640; --panel:#ffffff; --ink:#1d2733; --muted:#5d6b7a;
@@ -98,7 +98,7 @@
 </head>
 <body>
 <header id="appHeader">
-  <h1>qPCR Bar Plot Visualizer</h1>
+  <h1>Group-wise Analysis Platform (GWAP)</h1>
   <p>Manual data entry · ANOVA + Tukey HSD / Dunnett-style controls · publication-ready B/W or color plots · SVG &amp; PNG export</p>
 </header>
 
@@ -174,6 +174,9 @@
         <option value="anova">One-way ANOVA + post-hoc</option>
         <option value="ttest">Pairwise Welch's t-test</option>
       </select>
+      <label style="margin-top:8px"><input type="checkbox" id="pairedChk" style="width:auto;margin-right:6px">Paired samples (matched replicates)</label>
+      <label><input type="checkbox" id="nonparamChk" style="width:auto;margin-right:6px">Non-parametric (rank-based)</label>
+      <div class="hint" id="npHint" style="display:none"></div>
       <div class="row">
         <div>
           <label>Post-hoc method <span class="tag" id="phTag">ANOVA</span></label>
@@ -247,9 +250,9 @@
         <div class="seg" id="chartSeg"><button data-t="bar" class="on">Bar</button><button data-t="box">Box</button><button data-t="violin">Violin</button></div>
       </div>
       <div class="ctlrow"><span style="font-size:12px;color:var(--muted)">Fill:</span>
-        <div class="seg" id="colorSeg"><button data-c="bw" class="on">B/W patterns</button><button data-c="shade">B/W shade</button><button data-c="color">Color</button></div>
+        <div class="seg" id="colorSeg"><button data-c="bw">B/W patterns</button><button data-c="shade">B/W shade</button><button data-c="color" class="on">Color</button></div>
       </div>
-      <div id="themeWrap" style="display:none">
+      <div id="themeWrap" style="display:block">
         <label>Color theme</label>
         <select id="themeSel">
           <optgroup label="ggsci journal palettes">
@@ -272,12 +275,13 @@
         <div id="themeSwatch" style="display:flex;gap:3px;margin-top:5px"></div>
       </div>
       <div class="ctlrow"><span style="font-size:12px;color:var(--muted)">Error bars:</span>
-        <div class="seg" id="errSeg"><button data-e="sem" class="on">SEM</button><button data-e="sd">SD</button></div>
+        <div class="seg" id="errSeg"><button data-e="sem">SEM</button><button data-e="sd" class="on">SD</button></div>
       </div>
       <div class="ctlrow"><span style="font-size:12px;color:var(--muted)">Sig label:</span>
         <div class="seg" id="sigSeg"><button data-s="stars" class="on">Stars</button><button data-s="pval">p-values</button></div>
       </div>
       <label style="margin-top:6px"><input type="checkbox" id="dotsChk" style="width:auto;margin-right:6px">Overlay replicate points</label>
+      <label id="connectWrap" style="display:none"><input type="checkbox" id="connectChk" style="width:auto;margin-right:6px">Connect matched points (paired)</label>
       <label><input type="checkbox" id="legendChk" checked style="width:auto;margin-right:6px">Show legend (grouped plots)</label>
       <label><input type="checkbox" id="nsChk" checked style="width:auto;margin-right:6px">Show non-significant (ns) marks</label>
 
@@ -329,6 +333,42 @@ function tukeyP(diff,n1,n2,msw,k,dfw){var se=Math.sqrt(msw/2*(1/n1+1/n2));if(se=
 function mean(a){return a.reduce((s,v)=>s+v,0)/a.length;}
 function variance(a){var m=mean(a);return a.reduce((s,v)=>s+(v-m)*(v-m),0)/(a.length-1);}
 function welch(a,b){var n1=a.length,n2=b.length,m1=mean(a),m2=mean(b),v1=variance(a),v2=variance(b),se=Math.sqrt(v1/n1+v2/n2);if(se===0)return{t:0,df:n1+n2-2,p:1};var t=(m1-m2)/se,df=Math.pow(v1/n1+v2/n2,2)/(Math.pow(v1/n1,2)/(n1-1)+Math.pow(v2/n2,2)/(n2-1));return{t:t,df:df,p:tDistP(t,df)};}
+// paired (matched) t-test: replicates paired by index
+function pairedT(a,b){var n=Math.min(a.length,b.length);if(n<2)return{t:NaN,df:NaN,p:1};var d=[];for(var i=0;i<n;i++)d.push(a[i]-b[i]);var md=mean(d),sd=Math.sqrt(variance(d)),se=sd/Math.sqrt(n);if(se===0)return{t:0,df:n-1,p:1};var t=md/se;return{t:t,df:n-1,p:tDistP(t,n-1)};}
+// ---- non-parametric (rank-based) tests ----
+function rankAvg(arr){var idx=arr.map((v,i)=>[v,i]).sort((x,y)=>x[0]-y[0]);var ranks=new Array(arr.length),i=0;while(i<idx.length){var j=i;while(j+1<idx.length&&idx[j+1][0]===idx[i][0])j++;var r=(i+j)/2+1;for(var k=i;k<=j;k++)ranks[idx[k][1]]=r;i=j+1;}return ranks;}
+function nChoose(n,k){if(k<0||k>n)return 0;k=Math.min(k,n-k);var r=1;for(var i=0;i<k;i++)r=r*(n-i)/(i+1);return r;}
+// Mann–Whitney U (Wilcoxon rank-sum), two-sided. Exact for small n, else normal approx with tie correction.
+function mannWhitney(a,b){
+  var n1=a.length,n2=b.length,N=n1+n2;if(n1<1||n2<1)return{stat:NaN,p:1,method:'Mann–Whitney',exact:true};
+  var all=a.concat(b),ranks=rankAvg(all),R1=0;for(var i=0;i<n1;i++)R1+=ranks[i];
+  var U1=R1-n1*(n1+1)/2,U=Math.min(U1,n1*n2-U1);
+  if(N<=20&&nChoose(N,n1)<=300000){
+    var s2=ranks.map(r=>Math.round(r*2));        // scale to integers (½-ranks)
+    var dp=[];for(var j=0;j<=n1;j++)dp.push({});dp[0][0]=1;
+    s2.forEach(val=>{for(var j=Math.min(n1,dp.length-1);j>=1;j--){var prev=dp[j-1];for(var s in prev){var ns=+s+val;dp[j][ns]=(dp[j][ns]||0)+prev[s];}}});
+    var dist=dp[n1],total=0,le=0,ge=0,target=Math.round(R1*2);
+    for(var key in dist){var c=dist[key];total+=c;if(+key<=target)le+=c;if(+key>=target)ge+=c;}
+    return{stat:U,p:Math.min(1,2*Math.min(le,ge)/total),method:'Mann–Whitney',exact:true};
+  }
+  var mu=n1*n2/2,counts={};all.forEach(v=>counts[v]=(counts[v]||0)+1);var tie=0;for(var key in counts){var t=counts[key];tie+=t*t*t-t;}
+  var sigma=Math.sqrt(n1*n2/12*((N+1)-tie/(N*(N-1))));if(sigma===0)return{stat:U,p:1,method:'Mann–Whitney',exact:false};
+  var z=(Math.abs(U-mu)-0.5)/sigma;return{stat:U,p:Math.min(1,2*(1-Phi(z))),method:'Mann–Whitney',exact:false};
+}
+// Wilcoxon signed-rank (paired), two-sided. Exact enumeration for small n.
+function wilcoxon(a,b){
+  var n0=Math.min(a.length,b.length),d=[];for(var i=0;i<n0;i++){var x=a[i]-b[i];if(x!==0)d.push(x);}
+  var n=d.length;if(n<1)return{stat:NaN,p:1,method:'Wilcoxon',exact:true};
+  var ranks=rankAvg(d.map(Math.abs)),Wp=0;for(i=0;i<n;i++)if(d[i]>0)Wp+=ranks[i];
+  if(n<=22){
+    var s2=ranks.map(r=>Math.round(r*2)),dp={0:1};
+    s2.forEach(val=>{var nd={};for(var s in dp){nd[s]=(nd[s]||0)+dp[s];var ns=+s+val;nd[ns]=(nd[ns]||0)+dp[s];}dp=nd;});
+    var total=Math.pow(2,n),target=Math.round(Wp*2),le=0,ge=0;for(var s in dp){if(+s<=target)le+=dp[s];if(+s>=target)ge+=dp[s];}
+    return{stat:Wp,p:Math.min(1,2*Math.min(le,ge)/total),method:'Wilcoxon',exact:true};
+  }
+  var mu=n*(n+1)/4,sigma=Math.sqrt(n*(n+1)*(2*n+1)/24);if(sigma===0)return{stat:Wp,p:1,method:'Wilcoxon',exact:false};
+  var z=(Math.abs(Wp-mu)-0.5)/sigma;return{stat:Wp,p:Math.min(1,2*(1-Phi(z))),method:'Wilcoxon',exact:false};
+}
 function anova(groups){var k=groups.length,N=0,all=[];groups.forEach(g=>{N+=g.length;all=all.concat(g);});var grand=mean(all),ssb=0,ssw=0;groups.forEach(g=>{var m=mean(g);ssb+=g.length*(m-grand)*(m-grand);g.forEach(v=>ssw+=(v-m)*(v-m));});var dfb=k-1,dfw=N-k,msb=ssb/dfb,msw=ssw/dfw;return{F:msb/msw,dfb:dfb,dfw:dfw,msw:msw,p:fDistP(msb/msw,dfb,dfw)};}
 function lsd(a,b,msw,dfw){var t=(mean(a)-mean(b))/Math.sqrt(msw*(1/a.length+1/b.length));return{t:t,df:dfw,p:tDistP(t,dfw)};}
 function adjustP(ps,method){var m=ps.length;if(method==='bonferroni')return ps.map(p=>Math.min(1,p*m));if(method==='holm'){var idx=ps.map((p,i)=>[p,i]).sort((x,y)=>x[0]-y[0]),out=new Array(m),prev=0;idx.forEach((pair,rank)=>{var adj=Math.min(1,(m-rank)*pair[0]);adj=Math.max(adj,prev);prev=adj;out[pair[1]]=adj;});return out;}return ps.slice();}
@@ -337,7 +377,7 @@ function fmtP(p){return p<0.001?'p<0.001':'p='+p.toFixed(3);}
 
 /* ===================== DATA MODEL ===================== */
 var mode='relative',samples=[],nRep=3,controlIdx=0,customPairs=[];
-var cfg={chart:'bar',color:'bw',err:'sem',sig:'stars',lw:1,fs:1,W:640,ar:1.391};
+var cfg={chart:'bar',color:'color',err:'sd',sig:'stars',lw:1,fs:1,W:640,ar:1.391};
 
 /* grouped (3-level) model: groups on x-axis, series in legend */
 var grouping=false,expanded=false;
@@ -436,22 +476,28 @@ function refreshSampleSelectors(){
 // generic core: given series value-arrays + comparison spec, returns results
 function compareSeries(values,cmp,ctrl,pairList){
   var test=document.getElementById('testSel').value,ph=document.getElementById('phSel').value;
-  var res={test:test,cmp:cmp,ph:ph,anova:null,rows:[],vsControl:{},brackets:[]};
+  var paired=document.getElementById('pairedChk').checked;
+  var nonparam=document.getElementById('nonparamChk').checked;
+  var res={test:test,cmp:cmp,ph:ph,paired:paired,nonparam:nonparam,anova:null,rows:[],vsControl:{},brackets:[]};
+  var simple=paired||nonparam; // no ANOVA/Tukey family
   var anv=null,validGroups=values.filter(v=>v.length>=2);
-  if(test==='anova'&&validGroups.length>=2)anv=res.anova=anova(validGroups);
+  if(!simple&&test==='anova'&&validGroups.length>=2)anv=res.anova=anova(validGroups);
   var k=validGroups.length;
   var pairs=[];
   if(cmp==='control'){for(var i=0;i<values.length;i++)if(i!==ctrl)pairs.push([ctrl,i]);}else pairs=(pairList||[]).slice();
   var raw=pairs.map(pr=>{var a=values[pr[0]],b=values[pr[1]];if(!a||!b||a.length<2||b.length<2)return{p:NaN,t:NaN,df:NaN,method:'—'};
+    if(nonparam){var rn=paired?wilcoxon(a,b):mannWhitney(a,b);return{t:rn.stat,df:NaN,p:rn.p,method:rn.method+(rn.exact?'':' (approx)')};}
+    if(paired)return Object.assign(pairedT(a,b),{method:'Paired t'});
     if(test==='ttest')return Object.assign(welch(a,b),{method:'Welch t'});
     var an=anv||anova([a,b]);
     if(ph==='tukey'){var p=tukeyP(mean(a)-mean(b),a.length,b.length,an.msw,Math.max(k,2),an.dfw);return{t:NaN,df:an.dfw,p:p,method:'Tukey'};}
     return Object.assign(lsd(a,b,an.msw,an.dfw),{method:'LSD t'});});
   var rawP=raw.map(r=>isNaN(r.p)?1:r.p);
   // Tukey p-values are already family-wise; otherwise apply the chosen correction.
-  // Welch t-tests can also take Holm/Bonferroni (Tukey needs a pooled variance, so it falls back to Holm there).
+  // Paired/Welch/non-parametric take Holm/Bonferroni (Tukey needs a pooled variance, so it falls back to Holm).
   var adjP;
-  if(ph==='tukey')adjP=(test==='ttest')?adjustP(rawP,'holm'):rawP.slice();
+  if(simple){var corr=(ph==='tukey')?'holm':ph;adjP=(corr==='none')?rawP.slice():adjustP(rawP,corr);}
+  else if(ph==='tukey')adjP=(test==='ttest')?adjustP(rawP,'holm'):rawP.slice();
   else adjP=adjustP(rawP,ph);
   pairs.forEach((pr,i)=>{var rec={a:pr[0],b:pr[1],t:raw[i].t,df:raw[i].df,method:raw[i].method,praw:rawP[i],padj:adjP[i]};res.rows.push(rec);if(cmp==='control')res.vsControl[pr[1]]=adjP[i];else res.brackets.push(rec);});
   return res;
@@ -533,6 +579,17 @@ function drawElement(v,cx,barW,Y,plotBottom,FS,LW,fill,showDots){
 var gShadeN=1; // number of series, used to spread B/W shades
 function grayFor(idx){if(gShadeN<=1)return '#9a9a9a';var t=idx/(gShadeN-1),v=Math.round(35+t*(238-35));return 'rgb('+v+','+v+','+v+')';}
 function seriesFill(idx){if(cfg.color==='color')return PALETTE[idx%PALETTE.length];if(cfg.color==='shade')return grayFor(idx);return 'url(#pt'+(idx%7)+')';}
+// draw lines linking matched replicate i across columns (paired "spaghetti")
+function connectLines(cols,barW,Y,FS,LW){
+  var rN=Math.max.apply(null,cols.map(c=>c.v.length).concat(0)),s='',R=(2.3*Math.sqrt(FS)).toFixed(1);
+  for(var r=0;r<rN;r++){
+    var off=(rN>1?(r-(rN-1)/2):0)*(barW*0.5/Math.max(rN-1,1)),pts=[];
+    cols.forEach(c=>{if(c.v.length>r)pts.push([c.x+off,Y(c.v[r])]);});
+    if(pts.length>=2)s+='<path d="M'+pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' L')+'" fill="none" stroke="#555" stroke-width="'+(LW*0.7).toFixed(2)+'" stroke-opacity="0.5"/>';
+    pts.forEach(p=>{s+='<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+R+'" fill="#222" fill-opacity="0.8"/>';});
+  }
+  return s;
+}
 
 function buildSVG(values,stat){
   var FS=cfg.fs, LW=cfg.lw, W=cfg.W, H=Math.round(W/cfg.ar);
@@ -562,11 +619,13 @@ function buildSVG(values,stat){
   s+='<text transform="translate('+(mL-44*FS)+','+(mT+plotH/2)+') rotate(-90)" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('ylabIn').value)+'</text>';
   s+='<text x="'+(mL+plotW/2)+'" y="'+(H-10)+'" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('xlabIn').value)+'</text>';
   var showDots=document.getElementById('dotsChk').checked;
+  var connect=showDots&&document.getElementById('connectChk').checked&&document.getElementById('pairedChk').checked;
   for(var i=0;i<n;i++){
     var cx=X(i);
-    s+=drawElement(values[i],cx,barW,Y,mT+plotH,FS,LW,seriesFill(i),showDots);
+    s+=drawElement(values[i],cx,barW,Y,mT+plotH,FS,LW,seriesFill(i),showDots&&!connect);
     s+='<text x="'+cx+'" y="'+(mT+plotH+16)+'" text-anchor="end" font-family="Arial" font-size="'+f(12)+'" transform="rotate(-30 '+cx+' '+(mT+plotH+16)+')">'+escHtml(samples[i].name)+'</text>';
   }
+  if(connect)s+=connectLines(values.map((v,i)=>({x:X(i),v:v})),barW,Y,FS,LW);
   // significance — vs control: stars above each bar
   var showNS=document.getElementById('nsChk').checked;
   if(!custom){
@@ -597,6 +656,7 @@ function buildGroupedSVG(gvals,gstats){
   var plotW=W-mL-mR,plotH=H-mT-mB,G=gGroups.length,S=gSeries.length;
   gShadeN=S;
   var showDots=document.getElementById('dotsChk').checked;
+  var connect=showDots&&document.getElementById('connectChk').checked&&document.getElementById('pairedChk').checked;
   var showNS=document.getElementById('nsChk').checked;
   // per (group,series) top values
   var topV=gvals.map(grp=>grp.map(v=>seriesTopVal(v)));
@@ -623,8 +683,9 @@ function buildGroupedSVG(gvals,gstats){
   // bars + group labels
   for(var gi=0;gi<G;gi++){
     for(var si=0;si<S;si++){
-      s+=drawElement(gvals[gi][si],gx(gi,si),barW,Y,mT+plotH,FS,LW,seriesFill(si),showDots);
+      s+=drawElement(gvals[gi][si],gx(gi,si),barW,Y,mT+plotH,FS,LW,seriesFill(si),showDots&&!connect);
     }
+    if(connect){var cols=[];for(var si2=0;si2<S;si2++)cols.push({x:gx(gi,si2),v:gvals[gi][si2]});s+=connectLines(cols,barW,Y,FS,LW);}
     s+='<text x="'+slotC(gi)+'" y="'+(mT+plotH+18)+'" text-anchor="middle" font-family="Arial" font-size="'+f(12.5)+'" font-weight="700">'+escHtml(gGroups[gi])+'</text>';
     // within-group brackets (each comparison)
     gstats[gi].rows.filter(r=>showNS||r.padj<=0.05).forEach((r,lvl)=>{
@@ -655,11 +716,24 @@ function buildGroupedSVG(gvals,gstats){
 function renderStatsTable(values,stat){
   var box=document.getElementById('stats'),html='';
   if(stat.anova){var a=stat.anova;html+='<p style="margin:0 0 8px"><b>One-way ANOVA:</b> F('+a.dfb+', '+a.dfw+') = '+a.F.toFixed(3)+', '+fmtP(a.p)+' <span class="sig">'+stars(a.p)+'</span></p>';}
-  html+='<table><tr><th>Comparison</th><th>method</th><th>t</th><th>df</th><th>p (raw)</th><th>p (adj)</th><th></th></tr>';
+  html+='<table><tr><th>Comparison</th><th>method</th><th>t / stat</th><th>df</th><th>p (raw)</th><th>p (adj)</th><th></th></tr>';
   stat.rows.forEach(r=>{var rawc=(r.method==='Tukey'||isNaN(r.praw))?'—':r.praw.toFixed(4);html+='<tr><td>'+escHtml(samples[r.a].name)+' vs '+escHtml(samples[r.b].name)+'</td><td>'+r.method+'</td><td>'+(isNaN(r.t)?'—':r.t.toFixed(3))+'</td><td>'+(isNaN(r.df)?'—':(+r.df).toFixed(1))+'</td><td>'+rawc+'</td><td>'+(isNaN(r.padj)?'—':r.padj.toFixed(4))+'</td><td class="sig">'+stars(r.padj)+'</td></tr>';});
   html+='</table>';box.innerHTML=html;
   var test=document.getElementById('testSel').value,ph=document.getElementById('phSel').value,cmp=document.getElementById('cmpSel').value;
   var phName={tukey:'Tukey HSD',holm:'Holm-adjusted t-tests',bonferroni:'Bonferroni-adjusted t-tests',none:'uncorrected Fisher LSD'}[ph];
+  if(document.getElementById('nonparamChk').checked){
+    var paired0=document.getElementById('pairedChk').checked;
+    document.getElementById('methodNotes').innerHTML=
+      'Bars = mean of replicates; error bars = '+(cfg.err==='sem'?'SEM':'SD')+'. '+
+      '<b>'+(paired0?'Wilcoxon signed-rank':'Mann–Whitney U')+' test</b> (rank-based, no normality assumption). The “t / stat” column reports the test statistic ('+(paired0?'W⁺':'U')+'). Exact p-values for small n, normal approximation (“approx”) for larger n. Multiple comparisons corrected by '+(ph==='bonferroni'?'Bonferroni':(ph==='none'?'no method':'Holm'))+'. Significance: ns p&gt;0.05, * p≤0.05, ** p≤0.01, *** p≤0.001. See the "Statistics explained" panel.';
+    return;
+  }
+  if(document.getElementById('pairedChk').checked){
+    document.getElementById('methodNotes').innerHTML=
+      'Bars = mean of replicates; error bars = '+(cfg.err==='sem'?'SEM':'SD')+'. '+
+      '<b>Paired (matched) t-test:</b> replicates are matched by column (pair i = replicate i of each sample); the test analyses the within-pair differences. Use only when replicates are genuinely linked (same subject/donor/plate measured under both conditions). Multiple comparisons are corrected by '+(ph==='bonferroni'?'Bonferroni':(ph==='none'?'no method':'Holm'))+'. Significance: ns p&gt;0.05, * p≤0.05, ** p≤0.01, *** p≤0.001. See the "Statistics explained" panel for details.';
+    return;
+  }
   document.getElementById('methodNotes').innerHTML=
     'Bars = mean of replicates; error bars = '+(cfg.err==='sem'?'SEM':'SD')+'. '+
     (test==='anova'
@@ -704,13 +778,57 @@ var REFS={
  dunn:"Dunn, O. J. (1961). Multiple comparisons among means. <i>Journal of the American Statistical Association, 56</i>(293), 52–64.",
  holm:"Holm, S. (1979). A simple sequentially rejective multiple test procedure. <i>Scandinavian Journal of Statistics, 6</i>(2), 65–70.",
  dunnett:"Dunnett, C. W. (1955). A multiple comparison procedure for comparing several treatments with a control. <i>Journal of the American Statistical Association, 50</i>(272), 1096–1121.",
+ mannwhitney:"Mann, H. B., &amp; Whitney, D. R. (1947). On a test of whether one of two random variables is stochastically larger than the other. <i>The Annals of Mathematical Statistics, 18</i>(1), 50–60.",
+ wilcoxon:"Wilcoxon, F. (1945). Individual comparisons by ranking methods. <i>Biometrics Bulletin, 1</i>(6), 80–83.",
  livak:"Livak, K. J., &amp; Schmittgen, T. D. (2001). Analysis of relative gene expression data using real-time quantitative PCR and the 2−ΔΔC<sub>T</sub> method. <i>Methods, 25</i>(4), 402–408.",
  pfaffl:"Pfaffl, M. W. (2001). A new mathematical model for relative quantification in real-time RT-PCR. <i>Nucleic Acids Research, 29</i>(9), e45.",
  miqe:"Bustin, S. A., Benes, V., Garson, J. A., Hellemans, J., Huggett, J., Kubista, M., … Wittwer, C. T. (2009). The MIQE guidelines: Minimum information for publication of quantitative real-time PCR experiments. <i>Clinical Chemistry, 55</i>(4), 611–622."
 };
+function corrExplainer(){
+  return '<details style="margin:6px 0"><summary style="font-size:12px;color:var(--accent);font-weight:600">▸ More on multiple-comparison corrections</summary>'+
+    '<p style="margin:5px 0"><b>Why correct at all?</b> A single test at α = 0.05 has a 5% chance of a false positive. Run many tests and those chances accumulate — with 10 comparisons the probability of at least one false positive is about 40%. Corrections rein this in by controlling the <i>family-wise error rate</i> (FWER): the probability of making <b>any</b> false positive across the whole set of comparisons.</p>'+
+    '<p style="margin:5px 0"><b>Bonferroni.</b> The simplest method: multiply each raw p-value by the number of comparisons <i>m</i> (equivalently, only call a result significant if p &lt; α/m). It always controls the FWER and needs no assumptions, but it is the most conservative — with many comparisons it can hide real effects (low power).</p>'+
+    '<p style="margin:5px 0"><b>Holm (step-down).</b> A smarter version of Bonferroni. Rank the p-values from smallest to largest; test the smallest against α/m, the next against α/(m−1), and so on, stopping at the first non-significant step. It controls the FWER exactly as strictly as Bonferroni but rejects at least as many hypotheses — so it is <b>uniformly more powerful</b>. There is rarely a reason to prefer plain Bonferroni over Holm.</p>'+
+    '<p style="margin:5px 0"><b>Tukey HSD.</b> Built specifically for comparing <i>all</i> pairs of group means after ANOVA, using the exact studentized-range distribution and the pooled within-group variance. When you truly want every pairwise comparison and the group variances are similar, it is tighter (more powerful) than applying Bonferroni/Holm to the same set.</p>'+
+    '<p style="margin:5px 0"><b>None (Fisher LSD).</b> No adjustment is applied. Only defensible for a <i>single</i> pre-planned comparison, or as a "protected" test run only after a significant overall ANOVA with very few groups. With several comparisons it inflates false positives and should be avoided.</p>'+
+    '<p style="margin:5px 0"><b>Dunnett.</b> The optimal choice when every group is compared only to one shared control (not implemented here); it is more powerful than Tukey for that specific design because it tests fewer contrasts.</p>'+
+    '<p style="margin:5px 0"><b>Rule of thumb:</b> all pairs → Tukey; comparisons to a single control → Dunnett (or Holm here); a few selected pairs → Holm; one planned contrast → none.</p>'+
+    '</details>';
+}
 function updateExplain(){
   var test=document.getElementById('testSel').value,ph=document.getElementById('phSel').value,cmp=document.getElementById('cmpSel').value;
+  var paired=document.getElementById('pairedChk').checked;
+  var nonparam=document.getElementById('nonparamChk').checked;
   var refs=[],h='';
+  if(nonparam){
+    if(paired){
+      h+='<p><b>Wilcoxon signed-rank test</b> (paired, rank-based) is selected. It ranks the absolute within-pair differences and tests whether positive and negative differences balance out. Use it instead of the paired t-test when the differences are <i>not</i> normally distributed or contain outliers — common with small qPCR samples.</p>';
+      refs.push('wilcoxon');
+    }else{
+      h+='<p><b>Mann–Whitney U test</b> (also called the Wilcoxon rank-sum test) is selected. It pools both groups, ranks all values, and asks whether one group tends to have higher ranks than the other — a distribution-free alternative to the unpaired t-test that does not assume normality.</p>';
+      refs.push('mannwhitney');
+    }
+    h+='<p>The app computes an <b>exact</b> p-value by full enumeration for small samples (the typical qPCR case), and switches to a tie-corrected normal approximation (shown as “approx”) only for larger n. With several comparisons the p-values are corrected by '+(ph==='bonferroni'?'Bonferroni':(ph==='none'?'no method (not recommended)':'Holm'))+'.</p>';
+    h+='<p><b>When to use rank tests.</b> They make no normality assumption and resist outliers, which is reassuring for small n. The trade-off is lower power when the data <i>are</i> roughly normal, and with very small n (e.g. n=3) the smallest achievable p-value may not reach 0.05 at all — a non-significant result can simply mean too few replicates.'+(grouping?' In grouping mode the test runs within each group separately.':'')+' Significance: ns p&gt;0.05, * p≤0.05, ** p≤0.01, *** p≤0.001.</p>';
+    refs.push('miqe');
+    h+=corrExplainer();
+    var seenN={},listN=[];refs.forEach(r=>{if(!seenN[r]){seenN[r]=1;listN.push(r);}});
+    h+='<p style="margin:8px 0 2px"><b>References (APA)</b></p><ol style="margin:0 0 0 16px;padding:0;font-size:11.5px;color:#444">'+listN.map(r=>'<li style="margin-bottom:5px">'+REFS[r]+'</li>').join('')+'</ol>';
+    document.getElementById('explainBox').innerHTML=h;return;
+  }
+  if(paired){
+    h+='<p><b>Paired (matched) t-test</b> is selected. Instead of comparing two groups’ means independently, it works on the <i>within-pair differences</i>: replicate 1 of sample A is matched with replicate 1 of sample B, and so on. Use this only when the replicates are genuinely linked — e.g. the same animal/donor/plate measured before and after treatment, or two genes assayed on the same biological sample. Pairing removes between-subject variability, so it is more powerful than an unpaired test <i>when the pairing is real</i>; using it on unrelated samples is invalid.</p>';
+    h+='<p><b>Requirements:</b> both samples must have the same number of replicates entered <i>in the same order</i> (pair <i>i</i> = column <i>i</i> of each). With more than one comparison the p-values are corrected by '+(ph==='bonferroni'?'Bonferroni':(ph==='none'?'no method (not recommended for multiple pairs)':'Holm'))+'.</p>';
+    refs.push('student');
+    if(cmp==='control')refs.push('dunnett');
+    if(grouping)h+='<p><b>Grouping mode:</b> the paired test runs within each group separately.</p>';
+    h+='<p><b>Assumptions &amp; cautions.</b> The paired <i>differences</i> should be roughly normal. n=3 gives low power. Significance marks: ns p&gt;0.05, * p≤0.05, ** p≤0.01, *** p≤0.001.</p>';
+    refs.push('miqe');
+    h+=corrExplainer();
+    var seenP={},listP=[];refs.forEach(r=>{if(!seenP[r]){seenP[r]=1;listP.push(r);}});
+    h+='<p style="margin:8px 0 2px"><b>References (APA)</b></p><ol style="margin:0 0 0 16px;padding:0;font-size:11.5px;color:#444">'+listP.map(r=>'<li style="margin-bottom:5px">'+REFS[r]+'</li>').join('')+'</ol>';
+    document.getElementById('explainBox').innerHTML=h;return;
+  }
   if(test==='anova'){
     h+='<p><b>One-way ANOVA</b> asks one question first: are the means of <i>all</i> groups equal, or is at least one different? It does this with the F-ratio — variation <i>between</i> group means divided by variation <i>within</i> groups. Doing this before any pairwise test guards against the false positives you would get from comparing every pair blindly.</p>';
     refs.push('fisher');
@@ -724,12 +842,14 @@ function updateExplain(){
     else if(ph==='none'){h+='<p style="color:#c05621"><b>Correction — none.</b> With more than one comparison this inflates false positives; prefer Holm or Bonferroni unless you have a single planned comparison.</p>';}
     else{h+='<p><b>Correction — Holm.</b> A step-down adjustment of the t-test p-values that controls the family-wise error rate and is more powerful than Bonferroni. (Tukey is unavailable here because it needs a pooled ANOVA variance.)</p>';refs.push('holm');}
   }
+  h+='<p><b>Comparing only two groups?</b> A one-way ANOVA on exactly two groups is mathematically identical to the <b>Student (equal-variance) two-sample t-test</b> — the relationship is exact, F = t², and the p-values match to the last digit. So in this app the ANOVA + Tukey / Holm / Bonferroni / LSD options all collapse to the same Student t-test for two groups (with a single comparison, the correction changes nothing). The one exception is the <b>“Pairwise Welch’s t-test”</b> option, which is <i>not</i> the same: it does not assume equal variances and uses Welch–Satterthwaite degrees of freedom, giving a slightly different p-value. With small qPCR samples where spreads can differ, Welch’s t-test is the safer default for two groups; use the rank-based option if the data are clearly non-normal.</p>';
   if(cmp==='control'){h+='<p><b>Design — each sample vs. control.</b> When every group is compared only to a single reference, <b>Dunnett’s test</b> is the most powerful valid procedure and is worth citing as the ideal; the Tukey/Holm options used here are fully valid but slightly more conservative for this design.</p>';refs.push('dunnett');}
   else{h+='<p><b>Design — selected pairs.</b> Only the pairs you add are tested, but the multiplicity correction still accounts for how many comparisons you make.</p>';}
   if(grouping)h+='<p><b>Grouping mode.</b> Each group on the x-axis is treated as its own independent experiment: the test and its correction are computed <i>within</i> each group separately, and comparison brackets never cross groups.</p>';
   h+='<p><b>Assumptions &amp; cautions.</b> These tests assume approximately normal residuals and (for ANOVA/Tukey) similar variances across groups. qPCR studies typically use n=3, which gives <i>low power</i> — a non-significant result is not proof of “no difference.” Expression ratios are right-skewed, so analysing on the log scale (ΔCt or log₂ fold change) often fits the assumptions better. Significance marks: ns p&gt;0.05, * p≤0.05, ** p≤0.01, *** p≤0.001.</p>';
   if(mode==='ct'&&!grouping){h+='<p><b>Quantification (ΔΔCt).</b> Fold change = E<sup>−ΔΔCt</sup>, where ΔCt = Ct(target) − Ct(reference) and ΔΔCt is relative to the control sample’s mean ΔCt. With efficiency E = 2 this is the classic Livak 2<sup>−ΔΔCt</sup> method; for fully independent target/reference efficiencies, the Pfaffl model is the rigorous alternative.</p>';refs.push('livak','pfaffl');}
   refs.push('miqe');
+  h+=corrExplainer();
   var seen={},list=[];refs.forEach(r=>{if(!seen[r]){seen[r]=1;list.push(r);}});
   h+='<p style="margin:8px 0 2px"><b>References (APA)</b></p><ol style="margin:0 0 0 16px;padding:0;font-size:11.5px;color:#444">'+list.map(r=>'<li style="margin-bottom:5px">'+REFS[r]+'</li>').join('')+'</ol>';
   document.getElementById('explainBox').innerHTML=h;
@@ -739,10 +859,12 @@ function updateExplain(){
 function update(){
   updateExplain();
   var err=document.getElementById('dataErr');err.textContent='';
+  var pairedOn=document.getElementById('pairedChk').checked;
   if(grouping){
     gControl=parseInt((document.getElementById('gControlSel')||{}).value||0,10)||0;
     var gvals=computeGroupedValues();
     if(gvals.some(grp=>grp.some(v=>v.length<2)))err.textContent='Each sample in each group needs ≥2 numeric replicates for statistics.';
+    else if(pairedOn&&gvals.some(grp=>{var L=grp.filter(v=>v.length).map(v=>v.length);return L.length&&L.some(l=>l!==L[0]);}))err.textContent='Paired test: some samples have unequal replicate counts — pairs are matched by column up to the shorter sample.';
     var gstats=runGroupedStats(gvals);
     lastResult={mode:'grouped',gstats:gstats};
     document.getElementById('chart').innerHTML=buildGroupedSVG(gvals,gstats);
@@ -752,6 +874,7 @@ function update(){
   controlIdx=parseInt(document.getElementById('controlSel').value||0,10)||0;
   var values=computeValues();
   if(values.some(v=>v.length<2))err.textContent='Each sample needs ≥2 numeric replicates for statistics.';
+  else if(pairedOn){var L=values.filter(v=>v.length).map(v=>v.length);if(L.length&&L.some(l=>l!==L[0]))err.textContent='Paired test: samples have unequal replicate counts — pairs are matched by column up to the shorter sample.';}
   var stat=runStats(values);
   lastResult={mode:'flat',stat:stat};
   document.getElementById('chart').innerHTML=buildSVG(values,stat);
@@ -927,14 +1050,29 @@ function renderSwatch(){var t=document.getElementById('themeSel').value;document
 document.getElementById('colorSeg').addEventListener('click',()=>{document.getElementById('themeWrap').style.display=cfg.color==='color'?'block':'none';});
 document.getElementById('themeSel').addEventListener('change',e=>{PALETTE=THEMES[e.target.value]||THEMES.classic;renderSwatch();update();});
 renderSwatch();
-document.getElementById('testSel').addEventListener('change',e=>{var an=e.target.value==='anova';var ph=document.getElementById('phSel');document.getElementById('phTukeyOpt').disabled=!an;if(!an&&ph.value==='tukey')ph.value='holm';document.getElementById('phTag').textContent=an?'ANOVA':'correction';update();});
+function setDesignControls(){
+  var paired=document.getElementById('pairedChk').checked,nonparam=document.getElementById('nonparamChk').checked;
+  var simple=paired||nonparam,ph=document.getElementById('phSel'),an=document.getElementById('testSel').value==='anova';
+  document.getElementById('testSel').disabled=simple;
+  document.getElementById('phTukeyOpt').disabled=simple||!an;
+  if((simple||!an)&&ph.value==='tukey')ph.value='holm';
+  document.getElementById('phTag').textContent=(simple||!an)?'correction':'ANOVA';
+  var np=document.getElementById('npHint');
+  if(nonparam){np.style.display='block';np.innerHTML=paired?'Using <b>Wilcoxon signed-rank</b> test (paired, rank-based).':'Using <b>Mann–Whitney U</b> test (unpaired, rank-based).';}
+  else np.style.display='none';
+}
+document.getElementById('testSel').addEventListener('change',()=>{setDesignControls();update();});
+document.getElementById('pairedChk').addEventListener('change',()=>{setDesignControls();applyAppearanceVis();update();});
+document.getElementById('nonparamChk').addEventListener('change',()=>{setDesignControls();update();});
 document.getElementById('cmpSel').addEventListener('change',e=>{var custom=e.target.value==='custom';document.getElementById('customPairUI').style.display=custom?'block':'none';document.getElementById('gCtrlWrap').style.display=(grouping&&!custom)?'block':'none';document.getElementById('cmpHint').textContent=custom?(grouping?'Add sample pairs (by legend series); brackets are drawn within every group.':'Add specific sample pairs; brackets with significance are drawn above the tallest bar.'):(grouping?'Within each group, compares every sample to the chosen control sample.':'Compares every sample to the control (first row by default).');update();});
 document.getElementById('controlSel').addEventListener('change',update);
 document.getElementById('gControlSel').addEventListener('change',e=>{gControl=parseInt(e.target.value||0,10)||0;update();});
 document.getElementById('effSel').addEventListener('change',update);
 document.getElementById('phSel').addEventListener('change',update);
 ['titleIn','xlabIn','ylabIn'].forEach(id=>document.getElementById(id).addEventListener('input',update));
+function applyAppearanceVis(){document.getElementById('connectWrap').style.display=document.getElementById('pairedChk').checked?'block':'none';}
 document.getElementById('dotsChk').addEventListener('change',update);
+document.getElementById('connectChk').addEventListener('change',update);
 document.getElementById('legendChk').addEventListener('change',update);
 document.getElementById('nsChk').addEventListener('change',update);
 document.getElementById('lwIn').addEventListener('input',e=>{cfg.lw=+e.target.value;document.getElementById('lwVal').textContent=cfg.lw.toFixed(1)+'×';update();});
@@ -943,6 +1081,7 @@ document.getElementById('wIn').addEventListener('input',e=>{cfg.W=Math.max(300,+
 document.getElementById('arIn').addEventListener('change',e=>{cfg.ar=+e.target.value;update();});
 // init
 renderPageThemes();applyPageTheme('graphite');
+setDesignControls();applyAppearanceVis();
 exampleRelative();renderGrids();update();
 </script>
 </body>
