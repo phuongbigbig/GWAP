@@ -85,6 +85,13 @@
        display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.12)}
   #expandBtn:hover{filter:brightness(.96)}
   .panel.modal #expandBtn{position:fixed;right:30px;bottom:30px}
+  .cardExpand{position:absolute;top:7px;right:10px;z-index:5;width:30px;height:30px;padding:0;font-size:16px;line-height:1;
+       border-radius:7px;border:1px solid var(--accent);background:var(--accentSoft);color:var(--accent);
+       display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .cardExpand:hover{filter:brightness(.95)}
+  .panel.modal .cardExpand{position:fixed;top:30px;right:30px}
+  .panel.modal .chartwrap{min-height:78vh;display:flex;align-items:center;justify-content:center}
+  .panel.modal #chart svg{height:80vh;width:auto;max-width:96%;max-height:80vh}
   table.grid th.grp{background:#e3eaf1;border-bottom:2px solid var(--accent)}
   table.grid td.gname input,table.grid th.grp input{font-weight:700;text-align:center;color:var(--ink);background:transparent;border:none;width:100%;padding:5px 4px}
   table.grid td.gname input:focus,table.grid th.grp input:focus{outline:2px solid var(--accent);outline-offset:-2px;background:#fff}
@@ -219,8 +226,9 @@
 
   <!-- CENTER: plot + results -->
   <div class="col">
-    <div class="panel">
+    <div class="panel" id="plotPanel">
       <h2>Plot</h2>
+      <button id="plotExpandBtn" class="cardExpand" onclick="togglePlotExpand()" title="Enlarge / collapse the plot">⤢</button>
       <div class="chartwrap" id="chart"></div>
     </div>
     <div class="panel">
@@ -1039,6 +1047,15 @@ function toggleExpand(){
   document.getElementById('expandBtn').textContent=expanded?'⤡':'⤢';
   var bd=document.getElementById('inputBackdrop');
   if(expanded){p.classList.add('modal');if(!bd){bd=document.createElement('div');bd.id='inputBackdrop';bd.className='backdrop';bd.onclick=toggleExpand;document.body.appendChild(bd);}}
+  else{p.classList.remove('modal');if(bd)bd.remove();}
+}
+var plotExpanded=false;
+function togglePlotExpand(){
+  plotExpanded=!plotExpanded;
+  var p=document.getElementById('plotPanel');
+  document.getElementById('plotExpandBtn').textContent=plotExpanded?'⤡':'⤢';
+  var bd=document.getElementById('plotBackdrop');
+  if(plotExpanded){p.classList.add('modal');if(!bd){bd=document.createElement('div');bd.id='plotBackdrop';bd.className='backdrop';bd.onclick=togglePlotExpand;document.body.appendChild(bd);}}
   else{p.classList.remove('modal');if(bd)bd.remove();}
 }
 var gLoaded=false;
