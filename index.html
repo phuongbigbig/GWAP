@@ -285,6 +285,9 @@
       <div class="ctlrow"><span style="font-size:12px;color:var(--muted)">Error bars:</span>
         <div class="seg" id="errSeg"><button data-e="sem">SEM</button><button data-e="sd" class="on">SD</button></div>
       </div>
+      <div class="ctlrow"><span style="font-size:12px;color:var(--muted)">Y-axis scale:</span>
+        <div class="seg" id="yscaleSeg"><button data-y="linear" class="on">Linear</button><button data-y="log2">log₂</button><button data-y="log10">log₁₀</button></div>
+      </div>
       <div class="ctlrow"><span style="font-size:12px;color:var(--muted)">Sig label:</span>
         <div class="seg" id="sigSeg"><button data-s="stars" class="on">Stars</button><button data-s="pval">p-values</button></div>
       </div>
@@ -385,7 +388,7 @@ function fmtP(p){return p<0.001?'p<0.001':'p='+p.toFixed(3);}
 
 /* ===================== DATA MODEL ===================== */
 var mode='relative',samples=[],nRep=3,controlIdx=0,customPairs=[];
-var cfg={chart:'bar',color:'color',err:'sd',sig:'stars',lw:1,fs:1,W:640,ar:1.391};
+var cfg={chart:'bar',color:'color',err:'sd',sig:'stars',yscale:'linear',lw:1,fs:1,W:640,ar:1.391};
 
 /* grouped (3-level) model: groups on x-axis, series in legend */
 var grouping=false,expanded=false;
@@ -548,7 +551,7 @@ function boxStats(v){var s=v.slice().sort((a,b)=>a-b);var q1=quantile(s,0.25),me
 function kde(v,grid){var n=v.length,m=mean(v),sd=Math.sqrt(Math.max(variance(v),1e-9));var s=v.slice().sort((a,b)=>a-b);var iqr=quantile(s,0.75)-quantile(s,0.25);var sig=Math.min(sd,iqr/1.349)||sd;if(sig<=0)sig=Math.max(Math.abs(m)*0.05,1e-3);var h=0.9*sig*Math.pow(n,-0.2);if(h<=0)h=1e-3;return grid.map(y=>{var s2=0;for(var i=0;i<n;i++){var u=(y-v[i])/h;s2+=Math.exp(-u*u/2);}return s2/(n*h*Math.sqrt(2*Math.PI));});}
 function niceMax(v){var exp=Math.floor(Math.log10(v)),f=v/Math.pow(10,exp);var nf=f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10;return nf*Math.pow(10,exp);}
 function niceTicks(max,c){var step=max/c,out=[];for(var i=0;i<=c;i++)out.push(+(step*i).toPrecision(4));return out;}
-function fmtTick(t){return Math.abs(t)<1e-9?'0':(t%1===0?t.toString():t.toFixed(t<1?2:1));}
+function fmtTick(t){if(Math.abs(t)<1e-12)return'0';if(t%1===0)return t.toString();var v=parseFloat(t.toPrecision(4));return Math.abs(v)<1e-4?v.toExponential(0):(''+v);}
 function seriesErr(v){if(v.length<2)return 0;var sd=Math.sqrt(variance(v));return cfg.err==='sem'?sd/Math.sqrt(v.length):sd;}
 function seriesTopVal(v){if(!v.length)return 0;if(cfg.chart==='bar')return mean(v)+seriesErr(v);if(cfg.chart==='box'){var b=boxStats(v);return Math.max(b.wHi,b.max);}return Math.max.apply(null,v);}
 // draw one bar/box/violin element centred at cx; returns svg string
@@ -599,22 +602,37 @@ function connectLines(cols,barW,Y,FS,LW){
   return s;
 }
 
+// build a Y-axis mapping (linear or log2/log10). Stats are unaffected — display only.
+function buildYAxis(tops,pts,showDots,custom,L,mT,plotH){
+  var scale=cfg.yscale,globalMax=Math.max.apply(null,tops.concat(showDots?pts:[],1e-9));
+  if(scale!=='log2'&&scale!=='log10'){
+    var gap=Math.max(globalMax,1e-6)*0.11;
+    var yMax=custom&&L>0?niceMax(globalMax+gap*(L+0.9)):niceMax(globalMax*1.16);
+    return {Y:function(v){return mT+plotH-(v/yMax)*plotH;},ticks:niceTicks(yMax,5),globalMax:globalMax,log:false};
+  }
+  var base=scale==='log2'?2:10;
+  function tf(v){return scale==='log2'?Math.log2(v):Math.log10(v);}
+  var pos=tops.concat(showDots?pts:[]).filter(v=>v>0),dmin=pos.length?Math.min.apply(null,pos):1;
+  var yLo=Math.floor(tf(dmin)),yHi=Math.ceil(tf(globalMax));if(yHi<=yLo)yHi=yLo+1;
+  yHi+=custom&&L>0?(Math.ceil(L*0.5)+0.4):0.5;
+  var Y=function(v){var tv=(v>0)?tf(v):yLo;if(tv<yLo)tv=yLo;return mT+plotH-((tv-yLo)/(yHi-yLo))*plotH;};
+  var ticks=[];for(var e=Math.ceil(yLo);e<=Math.floor(yHi);e++)ticks.push(Math.pow(base,e));
+  return {Y:Y,ticks:ticks,globalMax:globalMax,log:true};
+}
 function buildSVG(values,stat){
   var FS=cfg.fs, LW=cfg.lw, W=cfg.W, H=Math.round(W/cfg.ar);
   var f=function(px){return (px*FS).toFixed(1);};
   var mL=Math.round(56+22*FS), mR=Math.round(20+6*FS), mT=Math.round(40+16*FS), mB=Math.round(64+26*FS);
   var plotW=W-mL-mR, plotH=H-mT-mB, n=samples.length;
   gShadeN=n;
+  var showDots0=document.getElementById('dotsChk').checked, vNS=document.getElementById('nsChk').checked;
   var allPts=values.flat();
   // top value of each drawn element (used for sig-marker placement & axis range)
   var tops=values.map(v=>seriesTopVal(v));
-  var globalMax=Math.max.apply(null,tops.concat(document.getElementById('dotsChk').checked?allPts:[],0.0001));
   var custom=document.getElementById('cmpSel').value==='custom';
-  var L=custom?stat.brackets.length:0;
-  var gap=Math.max(globalMax,1e-6)*0.11;
-  var yMax = custom&&L>0 ? niceMax(globalMax+gap*(L+0.9)) : niceMax(globalMax*1.16);
+  var L=custom?stat.brackets.filter(b=>vNS||b.padj<=0.05).length:0;
+  var ax=buildYAxis(tops,allPts,showDots0,custom,L,mT,plotH),Y=ax.Y,globalMax=ax.globalMax;
   function X(i){return mL+(i+0.5)*(plotW/n);}
-  function Y(v){return mT+plotH-(v/yMax)*plotH;}
   var barW=Math.min(58,(plotW/n)*0.62);
   var aw=(LW*1.4).toFixed(2), bw=(LW*1.1).toFixed(2), ew=(LW*1.2).toFixed(2), sw=(LW*1.1).toFixed(2);
   var s='';
@@ -623,7 +641,7 @@ function buildSVG(values,stat){
   s+='<text x="'+(W/2)+'" y="'+(mT-14)+'" text-anchor="middle" font-family="Arial" font-size="'+f(18)+'" font-weight="700" font-style="italic">'+escHtml(document.getElementById('titleIn').value)+'</text>';
   s+='<line x1="'+mL+'" y1="'+mT+'" x2="'+mL+'" y2="'+(mT+plotH)+'" stroke="#000" stroke-width="'+aw+'"/>';
   s+='<line x1="'+mL+'" y1="'+(mT+plotH)+'" x2="'+(mL+plotW)+'" y2="'+(mT+plotH)+'" stroke="#000" stroke-width="'+aw+'"/>';
-  niceTicks(yMax,5).forEach(t=>{var y=Y(t);s+='<line x1="'+(mL-5)+'" y1="'+y+'" x2="'+mL+'" y2="'+y+'" stroke="#000" stroke-width="'+bw+'"/>';s+='<text x="'+(mL-9)+'" y="'+(y+4)+'" text-anchor="end" font-family="Arial" font-size="'+f(12)+'">'+fmtTick(t)+'</text>';});
+  ax.ticks.forEach(t=>{var y=Y(t);s+='<line x1="'+(mL-5)+'" y1="'+y+'" x2="'+mL+'" y2="'+y+'" stroke="#000" stroke-width="'+bw+'"/>';s+='<text x="'+(mL-9)+'" y="'+(y+4)+'" text-anchor="end" font-family="Arial" font-size="'+f(12)+'">'+fmtTick(t)+'</text>';});
   s+='<text transform="translate('+(mL-44*FS)+','+(mT+plotH/2)+') rotate(-90)" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('ylabIn').value)+'</text>';
   s+='<text x="'+(mL+plotW/2)+'" y="'+(H-10)+'" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('xlabIn').value)+'</text>';
   var showDots=document.getElementById('dotsChk').checked;
@@ -640,10 +658,10 @@ function buildSVG(values,stat){
     for(var i=0;i<n;i++){if(i===controlIdx)continue;var p=stat.vsControl[i];if(p===undefined)continue;if(!showNS&&p>0.05)continue;var label=cfg.sig==='pval'?fmtP(p):stars(p);var yy=Y(tops[i])-8;s+='<text x="'+X(i)+'" y="'+yy.toFixed(1)+'" text-anchor="middle" font-family="Arial" font-size="'+f(cfg.sig==='pval'?11:15)+'" font-weight="700">'+label+'</text>';}
   } else {
     // brackets stacked ABOVE the highest bar (never overlapping bars)
+    var brStep=Math.max(18,plotH*0.06);
     stat.brackets.filter(b=>showNS||b.padj<=0.05).forEach((b,lvl)=>{
       var i1=Math.min(b.a,b.b),i2=Math.max(b.a,b.b);
-      var val=globalMax+gap*(lvl+1);
-      var by=Y(val);
+      var by=Y(globalMax)-12-lvl*brStep;
       var label=cfg.sig==='pval'?fmtP(b.padj):stars(b.padj);
       var tick=7;
       s+='<path d="M'+X(i1)+','+(by+tick)+' V'+by+' H'+X(i2)+' V'+(by+tick)+'" fill="none" stroke="#000" stroke-width="'+sw+'"/>';
@@ -669,23 +687,21 @@ function buildGroupedSVG(gvals,gstats){
   // per (group,series) top values
   var topV=gvals.map(grp=>grp.map(v=>seriesTopVal(v)));
   var groupMax=topV.map((arr,gi)=>{var extra=showDots?gvals[gi].flat():[];return Math.max.apply(null,arr.concat(extra,0.0001));});
-  var gMaxAll=Math.max.apply(null,groupMax.concat(0.0001));
-  var gapU=Math.max(gMaxAll,1e-6)*0.11;
-  var need=gMaxAll*1.16;
-  gstats.forEach((st,gi)=>{var nb=st.rows.filter(r=>showNS||r.padj<=0.05).length;if(nb)need=Math.max(need,groupMax[gi]+gapU*(nb+0.9));});
-  var yMax=niceMax(need);
+  var allTops=[].concat.apply([],topV),allPts=[].concat.apply([],gvals.map(g=>[].concat.apply([],g)));
+  var maxBr=Math.max.apply(null,gstats.map(st=>st.rows.filter(r=>showNS||r.padj<=0.05).length).concat(0));
+  var ax=buildYAxis(allTops,allPts,showDots,maxBr>0,maxBr,mT,plotH),Y=ax.Y;
   var slot=plotW/G;
   var clusterW=slot*0.80, step=clusterW/S, barW=Math.min(58,step*0.82);
   function gx(gi,si){return mL+(gi+0.5)*slot + (si-(S-1)/2)*step;}
   function slotC(gi){return mL+(gi+0.5)*slot;}
-  function Y(v){return mT+plotH-(v/yMax)*plotH;}
+  var brStep=Math.max(16,plotH*0.055);
   var aw=(LW*1.4).toFixed(2),bw=(LW*1.1).toFixed(2),sw=(LW*1.1).toFixed(2);
   var s='';
   s+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="#ffffff"/><defs>'+patternDefs()+'</defs>';
   s+='<text x="'+(W/2)+'" y="'+(mT-14)+'" text-anchor="middle" font-family="Arial" font-size="'+f(18)+'" font-weight="700" font-style="italic">'+escHtml(document.getElementById('titleIn').value)+'</text>';
   s+='<line x1="'+mL+'" y1="'+mT+'" x2="'+mL+'" y2="'+(mT+plotH)+'" stroke="#000" stroke-width="'+aw+'"/>';
   s+='<line x1="'+mL+'" y1="'+(mT+plotH)+'" x2="'+(mL+plotW)+'" y2="'+(mT+plotH)+'" stroke="#000" stroke-width="'+aw+'"/>';
-  niceTicks(yMax,5).forEach(t=>{var y=Y(t);s+='<line x1="'+(mL-5)+'" y1="'+y+'" x2="'+mL+'" y2="'+y+'" stroke="#000" stroke-width="'+bw+'"/>';s+='<text x="'+(mL-9)+'" y="'+(y+4)+'" text-anchor="end" font-family="Arial" font-size="'+f(12)+'">'+fmtTick(t)+'</text>';});
+  ax.ticks.forEach(t=>{var y=Y(t);s+='<line x1="'+(mL-5)+'" y1="'+y+'" x2="'+mL+'" y2="'+y+'" stroke="#000" stroke-width="'+bw+'"/>';s+='<text x="'+(mL-9)+'" y="'+(y+4)+'" text-anchor="end" font-family="Arial" font-size="'+f(12)+'">'+fmtTick(t)+'</text>';});
   s+='<text transform="translate('+(mL-44*FS)+','+(mT+plotH/2)+') rotate(-90)" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('ylabIn').value)+'</text>';
   s+='<text x="'+(mL+plotW/2)+'" y="'+(H-10)+'" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('xlabIn').value)+'</text>';
   // bars + group labels
@@ -697,7 +713,7 @@ function buildGroupedSVG(gvals,gstats){
     s+='<text x="'+slotC(gi)+'" y="'+(mT+plotH+18)+'" text-anchor="middle" font-family="Arial" font-size="'+f(12.5)+'" font-weight="700">'+escHtml(gGroups[gi])+'</text>';
     // within-group brackets (each comparison)
     gstats[gi].rows.filter(r=>showNS||r.padj<=0.05).forEach((r,lvl)=>{
-      var x1=gx(gi,r.a),x2=gx(gi,r.b),val=groupMax[gi]+gapU*(lvl+1),by=Y(val);
+      var x1=gx(gi,r.a),x2=gx(gi,r.b),by=Y(groupMax[gi])-12-lvl*brStep;
       var label=cfg.sig==='pval'?fmtP(r.padj):stars(r.padj),tick=6;
       s+='<path d="M'+x1+','+(by+tick)+' V'+by+' H'+x2+' V'+(by+tick)+'" fill="none" stroke="#000" stroke-width="'+sw+'"/>';
       s+='<text x="'+((x1+x2)/2)+'" y="'+(by-4)+'" text-anchor="middle" font-family="Arial" font-size="'+f(cfg.sig==='pval'?11:14)+'" font-weight="700">'+label+'</text>';
@@ -1062,7 +1078,7 @@ var gLoaded=false;
 document.getElementById('groupSeg').addEventListener('click',e=>{var b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');grouping=(b.dataset.g==='on');if(grouping&&!gLoaded){exampleGrouped();gLoaded=true;}applyGroupingUI();update();});
 document.getElementById('modeSeg').addEventListener('click',e=>{var b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');mode=b.dataset.mode;document.getElementById('ctOptions').style.display=mode==='ct'?'block':'none';document.getElementById('modeHint').innerHTML=(mode==='ct'?'Enter raw Ct for target and reference (housekeeping) genes. The app computes fold change by ΔΔCt against the chosen control.':'Each row = a sample/group. Each numbered column = a replicate. Bars show the mean across replicates.')+' <b>Tip:</b> paste a block of cells from Excel onto any cell — out-of-range values are ignored.';loadExample();});
 function segWire(id,key,map){document.getElementById(id).addEventListener('click',e=>{var b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');cfg[key]=b.dataset[map];update();});}
-segWire('chartSeg','chart','t');segWire('colorSeg','color','c');segWire('errSeg','err','e');segWire('sigSeg','sig','s');
+segWire('chartSeg','chart','t');segWire('colorSeg','color','c');segWire('errSeg','err','e');segWire('sigSeg','sig','s');segWire('yscaleSeg','yscale','y');
 function renderSwatch(){var t=document.getElementById('themeSel').value;document.getElementById('themeSwatch').innerHTML=THEMES[t].slice(0,6).map(c=>'<span style="width:20px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.2);background:'+c+'"></span>').join('');}
 document.getElementById('colorSeg').addEventListener('click',()=>{document.getElementById('themeWrap').style.display=cfg.color==='color'?'block':'none';});
 document.getElementById('themeSel').addEventListener('change',e=>{PALETTE=THEMES[e.target.value]||THEMES.classic;renderSwatch();update();});
