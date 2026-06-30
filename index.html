@@ -302,6 +302,9 @@
       <div class="slabel"><span>Font size</span><b id="fsVal">1.0×</b></div>
       <input type="range" id="fsIn" min="0.7" max="1.8" step="0.05" value="1">
 
+      <div class="slabel"><span>Bar / element width</span><b id="bwVal">1.0×</b></div>
+      <input type="range" id="bwIn" min="0.3" max="1.6" step="0.05" value="1">
+
       <div class="row" style="margin-top:12px">
         <div><label>Width (px)</label><input type="number" id="wIn" value="640" min="300" max="2000" step="20"></div>
         <div><label>Aspect ratio</label>
@@ -309,9 +312,16 @@
             <option value="1.391">Standard (≈3:2)</option>
             <option value="1.333">4:3</option>
             <option value="1.5">3:2</option>
+            <option value="1.6">16:10</option>
             <option value="1.777">16:9</option>
+            <option value="2">2:1 (wide)</option>
+            <option value="2.35">2.35:1 (ultra-wide)</option>
+            <option value="1.25">5:4</option>
+            <option value="1.15">Slight landscape</option>
             <option value="1">Square</option>
             <option value="0.8">Tall 4:5</option>
+            <option value="0.75">Tall 3:4</option>
+            <option value="0.6">Portrait 3:5</option>
           </select>
         </div>
       </div>
@@ -388,7 +398,7 @@ function fmtP(p){return p<0.001?'p<0.001':'p='+p.toFixed(3);}
 
 /* ===================== DATA MODEL ===================== */
 var mode='relative',samples=[],nRep=3,controlIdx=0,customPairs=[];
-var cfg={chart:'bar',color:'color',err:'sd',sig:'stars',yscale:'linear',lw:1,fs:1,W:640,ar:1.391};
+var cfg={chart:'bar',color:'color',err:'sd',sig:'stars',yscale:'linear',lw:1,fs:1,barw:1,W:640,ar:1.391};
 
 /* grouped (3-level) model: groups on x-axis, series in legend */
 var grouping=false,expanded=false;
@@ -633,7 +643,7 @@ function buildSVG(values,stat){
   var L=custom?stat.brackets.filter(b=>vNS||b.padj<=0.05).length:0;
   var ax=buildYAxis(tops,allPts,showDots0,custom,L,mT,plotH),Y=ax.Y,globalMax=ax.globalMax;
   function X(i){return mL+(i+0.5)*(plotW/n);}
-  var barW=Math.min(58,(plotW/n)*0.62);
+  var barW=Math.min(Math.min(58,(plotW/n)*0.62)*cfg.barw,(plotW/n)*0.96);
   var aw=(LW*1.4).toFixed(2), bw=(LW*1.1).toFixed(2), ew=(LW*1.2).toFixed(2), sw=(LW*1.1).toFixed(2);
   var s='';
   s+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="#ffffff"/>';
@@ -691,7 +701,7 @@ function buildGroupedSVG(gvals,gstats){
   var maxBr=Math.max.apply(null,gstats.map(st=>st.rows.filter(r=>showNS||r.padj<=0.05).length).concat(0));
   var ax=buildYAxis(allTops,allPts,showDots,maxBr>0,maxBr,mT,plotH),Y=ax.Y;
   var slot=plotW/G;
-  var clusterW=slot*0.80, step=clusterW/S, barW=Math.min(58,step*0.82);
+  var clusterW=slot*0.80, step=clusterW/S, barW=Math.min(Math.min(58,step*0.82)*cfg.barw,step*0.98);
   function gx(gi,si){return mL+(gi+0.5)*slot + (si-(S-1)/2)*step;}
   function slotC(gi){return mL+(gi+0.5)*slot;}
   var brStep=Math.max(16,plotH*0.055);
@@ -994,7 +1004,10 @@ var PAGE_THEMES={
  crimson: {name:'Crimson', accent:'#c0392b', bg:'#6e5658', deco:['#8f231a','#c0392b','#d65f53','#e2867d','#edb1ab','#f6d8d4']},
  green:   {name:'Green',   accent:'#2f855a', bg:'#566a5e', deco:['#1f5d3e','#2f855a','#3fa873','#6cc095','#9cd6b8','#cdeadd']},
  amber:   {name:'Amber',   accent:'#b7791f', bg:'#6b6353', deco:['#8a5a12','#b7791f','#d4942f','#e3b15f','#eecc93','#f7e6c7']},
- graphite:{name:'Graphite',accent:'#475569', bg:'#5c636d', deco:['#2f3a48','#475569','#64748b','#8a97a8','#b4bdca','#dde2e9']}
+ graphite:{name:'Graphite',accent:'#475569', bg:'#5c636d', deco:['#2f3a48','#475569','#64748b','#8a97a8','#b4bdca','#dde2e9']},
+ rose:    {name:'Rose',    accent:'#be3d6b', bg:'#6e5862', deco:['#8c2350','#be3d6b','#d6648a','#e490ac','#efb8cb','#f7dde6']},
+ indigo:  {name:'Indigo',  accent:'#3f51b5', bg:'#575d78', deco:['#283593','#3f51b5','#5c6bc0','#8591d4','#b0b8e4','#d7dcf2']},
+ sea:     {name:'Sea',     accent:'#0277a8', bg:'#4f6571', deco:['#014f70','#0277a8','#1f9ec9','#5cbfe0','#9bd8ee','#cdecf7']}
 };
 var PAGE_DECO=PAGE_THEMES.blue.deco;
 function renderPageThemes(){
@@ -1110,6 +1123,7 @@ document.getElementById('legendChk').addEventListener('change',update);
 document.getElementById('nsChk').addEventListener('change',update);
 document.getElementById('lwIn').addEventListener('input',e=>{cfg.lw=+e.target.value;document.getElementById('lwVal').textContent=cfg.lw.toFixed(1)+'×';update();});
 document.getElementById('fsIn').addEventListener('input',e=>{cfg.fs=+e.target.value;document.getElementById('fsVal').textContent=cfg.fs.toFixed(1)+'×';update();});
+document.getElementById('bwIn').addEventListener('input',e=>{cfg.barw=+e.target.value;document.getElementById('bwVal').textContent=cfg.barw.toFixed(2)+'×';update();});
 document.getElementById('wIn').addEventListener('input',e=>{cfg.W=Math.max(300,+e.target.value||640);update();});
 document.getElementById('arIn').addEventListener('change',e=>{cfg.ar=+e.target.value;update();});
 // init
