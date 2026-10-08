@@ -521,8 +521,10 @@ function escHtml(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;
 function setName(r,v){samples[r].name=v;refreshSampleSelectors();update();}
 function setVal(w,r,c,v){samples[r][w][c]=v;update();}
 function clip2grid(e){var t=(e.clipboardData||window.clipboardData).getData('text');if(!t)return null;var lines=t.replace(/\r/g,'').split('\n');if(lines.length&&lines[lines.length-1]==='')lines.pop();return lines.map(l=>l.split('\t'));}
-function pasteGrid(e,which,r,c){var m=clip2grid(e);if(!m||(m.length===1&&m[0].length===1))return;e.preventDefault();m.forEach((cols,i)=>cols.forEach((val,j)=>{var rr=r+i,cc=c+j;if(rr<samples.length&&cc<nRep)samples[rr][which][cc]=val.trim();}));renderGrids();update();}
-function pasteGrouped(e,gi,si,c){var m=clip2grid(e);if(!m||(m.length===1&&m[0].length===1))return;e.preventDefault();m.forEach((cols,i)=>cols.forEach((val,j)=>{var ss=si+i,cc=c+j;if(gi<gData.length&&ss<gSeries.length&&cc<nRep)gData[gi][ss][cc]=val.trim();}));renderGrouped();update();}
+// pasted "0,7" becomes 0.7 so the number input displays the value that is actually used
+function normCell(v){var x=parseNum(v);return isNaN(x)?String(v).trim():String(x);}
+function pasteGrid(e,which,r,c){var m=clip2grid(e);if(!m||(m.length===1&&m[0].length===1))return;e.preventDefault();m.forEach((cols,i)=>cols.forEach((val,j)=>{var rr=r+i,cc=c+j;if(rr<samples.length&&cc<nRep)samples[rr][which][cc]=normCell(val);}));renderGrids();update();}
+function pasteGrouped(e,gi,si,c){var m=clip2grid(e);if(!m||(m.length===1&&m[0].length===1))return;e.preventDefault();m.forEach((cols,i)=>cols.forEach((val,j)=>{var ss=si+i,cc=c+j;if(gi<gData.length&&ss<gSeries.length&&cc<nRep)gData[gi][ss][cc]=normCell(val);}));renderGrouped();update();}
 function addSample(){samples.push(blankRow('sample'+(samples.length+1)));renderGrids();update();}
 function removeSample(){if(samples.length>2){samples.pop();pruneStale();renderGrids();update();}}
 function addRep(){nRep++;samples.forEach(s=>{s.target.push('');s.hk.push('');});if(grouping){gData.forEach(grp=>grp.forEach(c=>c.push('')));renderGrouped();}else renderGrids();update();}
