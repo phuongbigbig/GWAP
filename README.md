@@ -84,6 +84,10 @@ The built-in **"Statistics explained"** panel describes the currently selected t
 - Pfaffl, M. W. (2001). A new mathematical model for relative quantification in real-time RT-PCR. *Nucleic Acids Research, 29*(9), e45.
 - Bustin, S. A., et al. (2009). The MIQE guidelines: Minimum information for publication of quantitative real-time PCR experiments. *Clinical Chemistry, 55*(4), 611–622.
 
+## Tests
+
+`node tests/stats.test.js` runs dependency-free regression tests for the statistics helpers (Tukey, Holm/Bonferroni, zero-variance, rank tests, number parsing, paired alignment).
+
 ## Browser support
 
 Works in any current desktop browser. No internet connection is required after the page loads.
