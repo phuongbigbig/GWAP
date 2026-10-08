@@ -350,12 +350,12 @@ function nphi(x){return Math.exp(-x*x/2)/Math.sqrt(2*Math.PI);}
 // studentized range CDF P(q<q0; k groups, df)
 function prange(w,k){if(w<=0)return 0;var lo=-8,hi=8,n=240,h=(hi-lo)/n,s=0;for(var i=0;i<=n;i++){var u=lo+i*h,f=nphi(u)*Math.pow(Phi(u)-Phi(u-w),k-1);s+=(i===0||i===n?1:(i%2?4:2))*f;}return k*s*h/3;}
 function ptukey(q0,k,df){if(q0<=0)return 0;if(df>1500)return prange(q0,k);var lcoef=(df/2)*Math.log(df/2)-logGamma(df/2)+Math.log(2),lo=1e-4,hi=Math.max(2.5,1+12/Math.sqrt(df)),n=160,h=(hi-lo)/n,s=0;for(var i=0;i<=n;i++){var x=lo+i*h,g=Math.exp(lcoef+(df-1)*Math.log(x)-df*x*x/2),f=g*prange(q0*x,k);s+=(i===0||i===n?1:(i%2?4:2))*f;}return s*h/3;}
-function tukeyP(diff,n1,n2,msw,k,dfw){var se=Math.sqrt(msw/2*(1/n1+1/n2));if(se===0)return 1;var q=Math.abs(diff)/se;return Math.max(0,Math.min(1,1-ptukey(q,k,dfw)));}
+function tukeyP(diff,n1,n2,msw,k,dfw){var se=Math.sqrt(msw/2*(1/n1+1/n2));if(se===0)return diff===0?1:0;var q=Math.abs(diff)/se;return Math.max(0,Math.min(1,1-ptukey(q,k,dfw)));}
 function mean(a){return a.reduce((s,v)=>s+v,0)/a.length;}
 function variance(a){var m=mean(a);return a.reduce((s,v)=>s+(v-m)*(v-m),0)/(a.length-1);}
-function welch(a,b){var n1=a.length,n2=b.length,m1=mean(a),m2=mean(b),v1=variance(a),v2=variance(b),se=Math.sqrt(v1/n1+v2/n2);if(se===0)return{t:0,df:n1+n2-2,p:1};var t=(m1-m2)/se,df=Math.pow(v1/n1+v2/n2,2)/(Math.pow(v1/n1,2)/(n1-1)+Math.pow(v2/n2,2)/(n2-1));return{t:t,df:df,p:tDistP(t,df)};}
+function welch(a,b){var n1=a.length,n2=b.length,m1=mean(a),m2=mean(b),v1=variance(a),v2=variance(b),se=Math.sqrt(v1/n1+v2/n2);if(se===0)return m1===m2?{t:0,df:n1+n2-2,p:1}:{t:m1>m2?Infinity:-Infinity,df:n1+n2-2,p:0};var t=(m1-m2)/se,df=Math.pow(v1/n1+v2/n2,2)/(Math.pow(v1/n1,2)/(n1-1)+Math.pow(v2/n2,2)/(n2-1));return{t:t,df:df,p:tDistP(t,df)};}
 // paired (matched) t-test: replicates paired by index
-function pairedT(a,b){var n=Math.min(a.length,b.length);if(n<2)return{t:NaN,df:NaN,p:1};var d=[];for(var i=0;i<n;i++)d.push(a[i]-b[i]);var md=mean(d),sd=Math.sqrt(variance(d)),se=sd/Math.sqrt(n);if(se===0)return{t:0,df:n-1,p:1};var t=md/se;return{t:t,df:n-1,p:tDistP(t,n-1)};}
+function pairedT(a,b){var n=Math.min(a.length,b.length);if(n<2)return{t:NaN,df:NaN,p:1};var d=[];for(var i=0;i<n;i++)d.push(a[i]-b[i]);var md=mean(d),sd=Math.sqrt(variance(d)),se=sd/Math.sqrt(n);if(se===0)return md===0?{t:0,df:n-1,p:1}:{t:md>0?Infinity:-Infinity,df:n-1,p:0};var t=md/se;return{t:t,df:n-1,p:tDistP(t,n-1)};}
 // ---- non-parametric (rank-based) tests ----
 function rankAvg(arr){var idx=arr.map((v,i)=>[v,i]).sort((x,y)=>x[0]-y[0]);var ranks=new Array(arr.length),i=0;while(i<idx.length){var j=i;while(j+1<idx.length&&idx[j+1][0]===idx[i][0])j++;var r=(i+j)/2+1;for(var k=i;k<=j;k++)ranks[idx[k][1]]=r;i=j+1;}return ranks;}
 function nChoose(n,k){if(k<0||k>n)return 0;k=Math.min(k,n-k);var r=1;for(var i=0;i<k;i++)r=r*(n-i)/(i+1);return r;}
@@ -387,14 +387,23 @@ function wilcoxon(a,b){
     var total=Math.pow(2,n),target=Math.round(Wp*2),le=0,ge=0;for(var s in dp){if(+s<=target)le+=dp[s];if(+s>=target)ge+=dp[s];}
     return{stat:Wp,p:Math.min(1,2*Math.min(le,ge)/total),method:'Wilcoxon',exact:true};
   }
-  var mu=n*(n+1)/4,sigma=Math.sqrt(n*(n+1)*(2*n+1)/24);if(sigma===0)return{stat:Wp,p:1,method:'Wilcoxon',exact:false};
+  var mu=n*(n+1)/4,tc={};d.forEach(x=>{var k=Math.abs(x);tc[k]=(tc[k]||0)+1;});var tieW=0;for(var tk in tc){var tt=tc[tk];tieW+=tt*tt*tt-tt;}
+  var sigma=Math.sqrt(n*(n+1)*(2*n+1)/24-tieW/48);if(!(sigma>0))return{stat:Wp,p:1,method:'Wilcoxon',exact:false};
   var z=(Math.abs(Wp-mu)-0.5)/sigma;return{stat:Wp,p:Math.min(1,2*(1-Phi(z))),method:'Wilcoxon',exact:false};
 }
-function anova(groups){var k=groups.length,N=0,all=[];groups.forEach(g=>{N+=g.length;all=all.concat(g);});var grand=mean(all),ssb=0,ssw=0;groups.forEach(g=>{var m=mean(g);ssb+=g.length*(m-grand)*(m-grand);g.forEach(v=>ssw+=(v-m)*(v-m));});var dfb=k-1,dfw=N-k,msb=ssb/dfb,msw=ssw/dfw;return{F:msb/msw,dfb:dfb,dfw:dfw,msw:msw,p:fDistP(msb/msw,dfb,dfw)};}
-function lsd(a,b,msw,dfw){var t=(mean(a)-mean(b))/Math.sqrt(msw*(1/a.length+1/b.length));return{t:t,df:dfw,p:tDistP(t,dfw)};}
-function adjustP(ps,method){var m=ps.length;if(method==='bonferroni')return ps.map(p=>Math.min(1,p*m));if(method==='holm'){var idx=ps.map((p,i)=>[p,i]).sort((x,y)=>x[0]-y[0]),out=new Array(m),prev=0;idx.forEach((pair,rank)=>{var adj=Math.min(1,(m-rank)*pair[0]);adj=Math.max(adj,prev);prev=adj;out[pair[1]]=adj;});return out;}return ps.slice();}
-function stars(p){if(p>0.05)return'ns';if(p>0.01)return'*';if(p>0.001)return'**';return'***';}
-function fmtP(p){return p<0.001?'p<0.001':'p='+p.toFixed(3);}
+function anova(groups){var k=groups.length,N=0,all=[];groups.forEach(g=>{N+=g.length;all=all.concat(g);});var grand=mean(all),ssb=0,ssw=0;groups.forEach(g=>{var m=mean(g);ssb+=g.length*(m-grand)*(m-grand);g.forEach(v=>ssw+=(v-m)*(v-m));});var dfb=k-1,dfw=N-k,msb=ssb/dfb,msw=ssw/dfw;if(msw===0){var sep=ssb>0;return{F:sep?Infinity:0,dfb:dfb,dfw:dfw,msw:0,p:sep?0:1};}return{F:msb/msw,dfb:dfb,dfw:dfw,msw:msw,p:fDistP(msb/msw,dfb,dfw)};}
+function lsd(a,b,msw,dfw){var d=mean(a)-mean(b),se=Math.sqrt(msw*(1/a.length+1/b.length));if(se===0)return d===0?{t:0,df:dfw,p:1}:{t:d>0?Infinity:-Infinity,df:dfw,p:0};var t=d/se;return{t:t,df:dfw,p:tDistP(t,dfw)};}
+function adjustP(ps,method){
+  // untestable comparisons (NaN) stay NaN and do not count towards the number of tests
+  var ok=[];ps.forEach((p,i)=>{if(!isNaN(p))ok.push(i);});
+  var vals=ok.map(i=>ps[i]),m=vals.length,adj;
+  if(method==='bonferroni')adj=vals.map(p=>Math.min(1,p*m));
+  else if(method==='holm'){var idx=vals.map((p,i)=>[p,i]).sort((x,y)=>x[0]-y[0]);adj=new Array(m);var prev=0;idx.forEach((pair,rank)=>{var a=Math.min(1,(m-rank)*pair[0]);a=Math.max(a,prev);prev=a;adj[pair[1]]=a;});}
+  else adj=vals.slice();
+  var out=ps.map(()=>NaN);ok.forEach((i,j)=>{out[i]=adj[j];});return out;
+}
+function stars(p){if(isNaN(p))return'n/a';if(p>0.05)return'ns';if(p>0.01)return'*';if(p>0.001)return'**';return'***';}
+function fmtP(p){if(isNaN(p))return'n/a';return p<0.001?'p<0.001':'p='+p.toFixed(3);}
 
 /* ===================== DATA MODEL ===================== */
 var mode='relative',samples=[],nRep=3,controlIdx=0,customPairs=[];
@@ -420,12 +429,39 @@ function exampleCt(){nRep=3;controlIdx=0;samples=[
   {name:'30min',target:[23.9,23.8,24.0],hk:[18.1,18.0,17.9]},{name:'1h',target:[24.4,24.5,24.3],hk:[18.0,17.9,18.1]},
   {name:'2h',target:[25.6,25.7,25.5],hk:[17.9,18.0,18.1]}];}
 
-function computeValues(){
-  if(mode==='relative')return samples.map(s=>s.target.filter(v=>v!==null&&v!==undefined&&String(v).trim()!==''&&isFinite(Number(v))).map(Number));
+// strict numeric parser shared by all modes; accepts a decimal comma ("0,7"); anything else non-numeric -> NaN
+function parseNum(v){
+  if(typeof v==='number')return isFinite(v)?v:NaN;
+  if(v===null||v===undefined)return NaN;
+  var t=String(v).trim();if(t==='')return NaN;
+  if(/^[+-]?(\d+([.,]\d*)?|[.,]\d+)([eE][+-]?\d+)?$/.test(t))return parseFloat(t.replace(',','.'));
+  return NaN;
+}
+var dataWarn=[]; // data problems found while reading the tables (shown under the table)
+// Replicate-aligned data: aligned[sample][replicate] is a number or NaN (blank/invalid). Paired tests need this alignment.
+function computeAligned(){
+  dataWarn=[];
+  var bad=0;
+  if(mode==='relative'){
+    return samples.map(s=>s.target.map(v=>{var x=parseNum(v);if(isNaN(x)&&v!==null&&v!==undefined&&String(v).trim()!=='')bad++;return x;}));
+  }
   var E=parseFloat(document.getElementById('effSel').value)||2;
-  var dct=samples.map(s=>{var arr=[];for(var i=0;i<s.target.length;i++){var t=parseFloat(s.target[i]),h=parseFloat(s.hk[i]);if(!isNaN(t)&&!isNaN(h))arr.push(t-h);}return arr;});
-  var ctrl=dct[controlIdx],cm=ctrl&&ctrl.length?mean(ctrl):0;
-  return dct.map(arr=>arr.map(d=>Math.pow(E,-(d-cm))));
+  var dct=samples.map(s=>{var arr=[];for(var i=0;i<s.target.length;i++){var t=parseNum(s.target[i]),h=parseNum(s.hk[i]);
+    if(isNaN(t)&&String(s.target[i]==null?'':s.target[i]).trim()!=='')bad++;
+    if(isNaN(h)&&String(s.hk[i]==null?'':s.hk[i]).trim()!=='')bad++;
+    arr.push(isNaN(t)||isNaN(h)?NaN:t-h);}return arr;});
+  var ctrl=(dct[controlIdx]||[]).filter(isFinite);
+  if(bad)dataWarn.push(bad+' cell(s) are not valid numbers and were ignored.');
+  if(!ctrl.length){dataWarn.push('The control sample has no replicate with both a target and a reference Ct, so fold changes cannot be calculated.');return dct.map(arr=>arr.map(()=>NaN));}
+  var cm=mean(ctrl);
+  return dct.map(arr=>arr.map(d=>isNaN(d)?NaN:Math.pow(E,-(d-cm))));
+}
+function dropNaN(arr){return arr.filter(x=>!isNaN(x));}
+function computeValues(){
+  var al=computeAligned();
+  if(mode==='relative'){var bad=0;samples.forEach(s=>s.target.forEach(v=>{if(isNaN(parseNum(v))&&v!==null&&v!==undefined&&String(v).trim()!=='')bad++;}));if(bad)dataWarn.push(bad+' cell(s) are not valid numbers and were ignored.');}
+  computeValues.aligned=al;
+  return al.map(dropNaN);
 }
 
 /* ---- grouped data ---- */
@@ -436,7 +472,13 @@ function exampleGrouped(){nRep=3;gControl=0;gPairs=[[0,1],[0,2]];
     [[1.00,1.08,0.92],[1.05,0.95,1.12],[1.10,1.25,0.98]],
     [[1.00,1.05,0.96],[2.30,2.10,2.25],[0.40,0.32,0.46]]
   ];gEnsure();}
-function computeGroupedValues(){gEnsure();return gData.map(grp=>grp.map(cell=>cell.filter(v=>v!==null&&v!==undefined&&String(v).trim()!==''&&isFinite(Number(v))).map(Number)));}
+function computeGroupedValues(){
+  gEnsure();dataWarn=[];var bad=0;
+  var al=gData.map(grp=>grp.map(cell=>cell.map(v=>{var x=parseNum(v);if(isNaN(x)&&v!==null&&v!==undefined&&String(v).trim()!=='')bad++;return x;})));
+  if(bad)dataWarn.push(bad+' cell(s) are not valid numbers and were ignored.');
+  computeGroupedValues.aligned=al;
+  return al.map(grp=>grp.map(dropNaN));
+}
 function renderGrouped(){
   gEnsure();
   var html='<label style="margin-top:6px">Relative expression — groups (columns) × samples (rows)</label>';
@@ -458,7 +500,7 @@ function gSetGroup(gi,v){gGroups[gi]=v;update();}
 function gSetSeries(si,v){gSeries[si]=v;refreshSampleSelectors();update();}
 function gSetVal(gi,si,c,v){gData[gi][si][c]=v;update();}
 function gAddSeries(){gSeries.push('Sample '+(gSeries.length+1));gData.forEach(grp=>grp.push(gBlankCell()));renderGrouped();update();}
-function gRemoveSeries(){if(gSeries.length>1){gSeries.pop();gData.forEach(grp=>grp.pop());if(gControl>=gSeries.length)gControl=0;renderGrouped();update();}}
+function gRemoveSeries(){if(gSeries.length>1){gSeries.pop();gData.forEach(grp=>grp.pop());pruneStale();renderGrouped();update();}}
 function gAddGroup(){gGroups.push('Group '+(gGroups.length+1));gData.push(gSeries.map(()=>gBlankCell()));renderGrouped();update();}
 function gRemoveGroup(){if(gGroups.length>1){gGroups.pop();gData.pop();renderGrouped();update();}}
 
@@ -479,10 +521,12 @@ function escHtml(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;
 function setName(r,v){samples[r].name=v;refreshSampleSelectors();update();}
 function setVal(w,r,c,v){samples[r][w][c]=v;update();}
 function clip2grid(e){var t=(e.clipboardData||window.clipboardData).getData('text');if(!t)return null;var lines=t.replace(/\r/g,'').split('\n');if(lines.length&&lines[lines.length-1]==='')lines.pop();return lines.map(l=>l.split('\t'));}
-function pasteGrid(e,which,r,c){var m=clip2grid(e);if(!m||(m.length===1&&m[0].length===1))return;e.preventDefault();m.forEach((cols,i)=>cols.forEach((val,j)=>{var rr=r+i,cc=c+j;if(rr<samples.length&&cc<nRep)samples[rr][which][cc]=val.trim();}));renderGrids();update();}
-function pasteGrouped(e,gi,si,c){var m=clip2grid(e);if(!m||(m.length===1&&m[0].length===1))return;e.preventDefault();m.forEach((cols,i)=>cols.forEach((val,j)=>{var ss=si+i,cc=c+j;if(gi<gData.length&&ss<gSeries.length&&cc<nRep)gData[gi][ss][cc]=val.trim();}));renderGrouped();update();}
+// pasted "0,7" becomes 0.7 so the number input displays the value that is actually used
+function normCell(v){var x=parseNum(v);return isNaN(x)?String(v).trim():String(x);}
+function pasteGrid(e,which,r,c){var m=clip2grid(e);if(!m||(m.length===1&&m[0].length===1))return;e.preventDefault();m.forEach((cols,i)=>cols.forEach((val,j)=>{var rr=r+i,cc=c+j;if(rr<samples.length&&cc<nRep)samples[rr][which][cc]=normCell(val);}));renderGrids();update();}
+function pasteGrouped(e,gi,si,c){var m=clip2grid(e);if(!m||(m.length===1&&m[0].length===1))return;e.preventDefault();m.forEach((cols,i)=>cols.forEach((val,j)=>{var ss=si+i,cc=c+j;if(gi<gData.length&&ss<gSeries.length&&cc<nRep)gData[gi][ss][cc]=normCell(val);}));renderGrouped();update();}
 function addSample(){samples.push(blankRow('sample'+(samples.length+1)));renderGrids();update();}
-function removeSample(){if(samples.length>2){samples.pop();if(controlIdx>=samples.length)controlIdx=0;renderGrids();update();}}
+function removeSample(){if(samples.length>2){samples.pop();pruneStale();renderGrids();update();}}
 function addRep(){nRep++;samples.forEach(s=>{s.target.push('');s.hk.push('');});if(grouping){gData.forEach(grp=>grp.forEach(c=>c.push('')));renderGrouped();}else renderGrids();update();}
 function removeRep(){if(nRep>2){nRep--;samples.forEach(s=>{s.target.pop();s.hk.pop();});if(grouping){gData.forEach(grp=>grp.forEach(c=>c.pop()));renderGrouped();}else renderGrids();update();}}
 function refreshSampleSelectors(){
@@ -495,7 +539,9 @@ function refreshSampleSelectors(){
 
 /* ===================== STATS DRIVER ===================== */
 // generic core: given series value-arrays + comparison spec, returns results
-function compareSeries(values,cmp,ctrl,pairList){
+// keep only replicate positions present in BOTH samples (blank cells never shift the matching)
+function pairUp(x,y){var a=[],b=[],n=Math.min(x.length,y.length);for(var i=0;i<n;i++)if(!isNaN(x[i])&&!isNaN(y[i])){a.push(x[i]);b.push(y[i]);}return[a,b];}
+function compareSeries(values,cmp,ctrl,pairList,aligned){
   var test=document.getElementById('testSel').value,ph=document.getElementById('phSel').value;
   var paired=document.getElementById('pairedChk').checked;
   var nonparam=document.getElementById('nonparamChk').checked;
@@ -506,14 +552,18 @@ function compareSeries(values,cmp,ctrl,pairList){
   var k=validGroups.length;
   var pairs=[];
   if(cmp==='control'){for(var i=0;i<values.length;i++)if(i!==ctrl)pairs.push([ctrl,i]);}else pairs=(pairList||[]).slice();
-  var raw=pairs.map(pr=>{var a=values[pr[0]],b=values[pr[1]];if(!a||!b||a.length<2||b.length<2)return{p:NaN,t:NaN,df:NaN,method:'—'};
+  var notes=[];
+  var raw=pairs.map(pr=>{var a=values[pr[0]],b=values[pr[1]];
+    if(paired&&aligned&&aligned[pr[0]]&&aligned[pr[1]]){var pu=pairUp(aligned[pr[0]],aligned[pr[1]]);a=pu[0];b=pu[1];}
+    if(!a||!b||a.length<2||b.length<2)return{p:NaN,t:NaN,df:NaN,method:'—'};
+    if(nonparam){var nn=paired?Math.pow(2,a.length):nChoose(a.length+b.length,a.length),minP=Math.min(1,2/nn);if(minP>0.05)notes.push(minP);}
     if(nonparam){var rn=paired?wilcoxon(a,b):mannWhitney(a,b);return{t:rn.stat,df:NaN,p:rn.p,method:rn.method+(rn.exact?'':' (approx)')};}
     if(paired)return Object.assign(pairedT(a,b),{method:'Paired t'});
     if(test==='ttest')return Object.assign(welch(a,b),{method:'Welch t'});
     var an=anv||anova([a,b]);
     if(ph==='tukey'){var p=tukeyP(mean(a)-mean(b),a.length,b.length,an.msw,Math.max(k,2),an.dfw);return{t:NaN,df:an.dfw,p:p,method:'Tukey'};}
     return Object.assign(lsd(a,b,an.msw,an.dfw),{method:'LSD t'});});
-  var rawP=raw.map(r=>isNaN(r.p)?1:r.p);
+  var rawP=raw.map(r=>r.p);
   // Tukey p-values are already family-wise; otherwise apply the chosen correction.
   // Paired/Welch/non-parametric take Holm/Bonferroni (Tukey needs a pooled variance, so it falls back to Holm).
   var adjP;
@@ -521,13 +571,14 @@ function compareSeries(values,cmp,ctrl,pairList){
   else if(ph==='tukey')adjP=(test==='ttest')?adjustP(rawP,'holm'):rawP.slice();
   else adjP=adjustP(rawP,ph);
   pairs.forEach((pr,i)=>{var rec={a:pr[0],b:pr[1],t:raw[i].t,df:raw[i].df,method:raw[i].method,praw:rawP[i],padj:adjP[i]};res.rows.push(rec);if(cmp==='control')res.vsControl[pr[1]]=adjP[i];else res.brackets.push(rec);});
+  if(notes.length)res.lowPower=Math.max.apply(null,notes);
   return res;
 }
-function runStats(values){return compareSeries(values,document.getElementById('cmpSel').value,controlIdx,customPairs);}
+function runStats(values){return compareSeries(values,document.getElementById('cmpSel').value,controlIdx,customPairs,computeValues.aligned);}
 // grouped: run compareSeries within each group independently
 function runGroupedStats(gvals){
   var cmp=document.getElementById('cmpSel').value;
-  return gvals.map(seriesVals=>compareSeries(seriesVals,cmp,gControl,gPairs));
+  return gvals.map((seriesVals,gi)=>compareSeries(seriesVals,cmp,gControl,gPairs,(computeGroupedValues.aligned||[])[gi]));
 }
 
 /* ===================== PLOT ===================== */
@@ -558,7 +609,7 @@ function patternDefs(){return [
 ].join('');}
 function quantile(sorted,q){if(sorted.length===1)return sorted[0];var pos=(sorted.length-1)*q,b=Math.floor(pos),r=pos-b;return sorted[b+1]!==undefined?sorted[b]+r*(sorted[b+1]-sorted[b]):sorted[b];}
 function boxStats(v){var s=v.slice().sort((a,b)=>a-b);var q1=quantile(s,0.25),med=quantile(s,0.5),q3=quantile(s,0.75),iqr=q3-q1;var loF=q1-1.5*iqr,hiF=q3+1.5*iqr;var inl=s.filter(x=>x>=loF&&x<=hiF);var wLo=inl.length?inl[0]:s[0],wHi=inl.length?inl[inl.length-1]:s[s.length-1];var out=s.filter(x=>x<loF||x>hiF);return{q1:q1,med:med,q3:q3,wLo:wLo,wHi:wHi,out:out,min:s[0],max:s[s.length-1]};}
-function kde(v,grid){var n=v.length,m=mean(v),sd=Math.sqrt(Math.max(variance(v),1e-9));var s=v.slice().sort((a,b)=>a-b);var iqr=quantile(s,0.75)-quantile(s,0.25);var sig=Math.min(sd,iqr/1.349)||sd;if(sig<=0)sig=Math.max(Math.abs(m)*0.05,1e-3);var h=0.9*sig*Math.pow(n,-0.2);if(h<=0)h=1e-3;return grid.map(y=>{var s2=0;for(var i=0;i<n;i++){var u=(y-v[i])/h;s2+=Math.exp(-u*u/2);}return s2/(n*h*Math.sqrt(2*Math.PI));});}
+function kde(v,grid){var n=v.length,m=mean(v),sd=n>1?Math.sqrt(Math.max(variance(v),1e-9)):0;var s=v.slice().sort((a,b)=>a-b);var iqr=quantile(s,0.75)-quantile(s,0.25);var sig=Math.min(sd,iqr/1.349)||sd;if(n<2||!(sig>0))sig=Math.max(Math.abs(m)*0.05,1e-3);var h=0.9*sig*Math.pow(n,-0.2);if(h<=0)h=1e-3;return grid.map(y=>{var s2=0;for(var i=0;i<n;i++){var u=(y-v[i])/h;s2+=Math.exp(-u*u/2);}return s2/(n*h*Math.sqrt(2*Math.PI));});}
 function niceMax(v){var exp=Math.floor(Math.log10(v)),f=v/Math.pow(10,exp);var nf=f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10;return nf*Math.pow(10,exp);}
 function niceTicks(max,c){var step=max/c,out=[];for(var i=0;i<=c;i++)out.push(+(step*i).toPrecision(4));return out;}
 function fmtTick(t){if(Math.abs(t)<1e-12)return'0';if(t%1===0)return t.toString();var v=parseFloat(t.toPrecision(4));return Math.abs(v)<1e-4?v.toExponential(0):(''+v);}
@@ -570,7 +621,7 @@ function drawElement(v,cx,barW,Y,plotBottom,FS,LW,fill,showDots){
   var bw=(LW*1.1).toFixed(2),ew=(LW*1.2).toFixed(2),dotR=(2.4*Math.sqrt(FS)).toFixed(1),cap=barW*0.28,x=cx-barW/2,s='';
   if(cfg.chart==='bar'){
     var m=mean(v),err=seriesErr(v),y=Y(m),h=plotBottom-y;
-    s+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" fill="'+fill+'" stroke="#000" stroke-width="'+bw+'"/>';
+    s+='<rect x="'+x.toFixed(1)+'" y="'+Math.min(y,plotBottom).toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+Math.abs(h).toFixed(1)+'" fill="'+fill+'" stroke="#000" stroke-width="'+bw+'"/>';
     if(err>0){var yt=Y(m+err);s+='<line x1="'+cx+'" y1="'+y+'" x2="'+cx+'" y2="'+yt+'" stroke="#000" stroke-width="'+ew+'"/>';s+='<line x1="'+(cx-7)+'" y1="'+yt+'" x2="'+(cx+7)+'" y2="'+yt+'" stroke="#000" stroke-width="'+ew+'"/>';}
   } else if(cfg.chart==='box'){
     var b=boxStats(v);
@@ -594,9 +645,11 @@ function drawElement(v,cx,barW,Y,plotBottom,FS,LW,fill,showDots){
     s+='<line x1="'+cx+'" y1="'+Y(b2.q1)+'" x2="'+cx+'" y2="'+Y(b2.q3)+'" stroke="#000" stroke-width="'+(LW*3).toFixed(2)+'" stroke-linecap="round"/>';
     s+='<circle cx="'+cx+'" cy="'+Y(b2.med)+'" r="'+(2.8*Math.sqrt(FS)).toFixed(1)+'" fill="#fff" stroke="#000" stroke-width="'+bw+'"/>';
   }
-  if(showDots)v.forEach(val=>{var jx=cx+(Math.random()-0.5)*barW*0.45;s+='<circle cx="'+jx.toFixed(1)+'" cy="'+Y(val).toFixed(1)+'" r="'+dotR+'" fill="#222" fill-opacity="0.7"/>';});
+  if(showDots)v.forEach(val=>{var jx=cx+(jitRand()-0.5)*barW*0.45;s+='<circle cx="'+jx.toFixed(1)+'" cy="'+Y(val).toFixed(1)+'" r="'+dotR+'" fill="#222" fill-opacity="0.7"/>';});
   return s;
 }
+var jitSeed=1;
+function jitRand(){jitSeed=(jitSeed*1664525+1013904223)>>>0;return jitSeed/4294967296;} // deterministic: same data -> same figure
 var gShadeN=1; // number of series, used to spread B/W shades
 function grayFor(idx){if(gShadeN<=1)return '#9a9a9a';var t=idx/(gShadeN-1),v=Math.round(35+t*(238-35));return 'rgb('+v+','+v+','+v+')';}
 function seriesFill(idx){if(cfg.color==='color')return PALETTE[idx%PALETTE.length];if(cfg.color==='shade')return grayFor(idx);return 'url(#pt'+(idx%7)+')';}
@@ -605,7 +658,7 @@ function connectLines(cols,barW,Y,FS,LW){
   var rN=Math.max.apply(null,cols.map(c=>c.v.length).concat(0)),s='',R=(2.3*Math.sqrt(FS)).toFixed(1);
   for(var r=0;r<rN;r++){
     var off=(rN>1?(r-(rN-1)/2):0)*(barW*0.5/Math.max(rN-1,1)),pts=[];
-    cols.forEach(c=>{if(c.v.length>r)pts.push([c.x+off,Y(c.v[r])]);});
+    cols.forEach(c=>{if(c.v.length>r&&!isNaN(c.v[r]))pts.push([c.x+off,Y(c.v[r])]);});
     if(pts.length>=2)s+='<path d="M'+pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' L')+'" fill="none" stroke="#555" stroke-width="'+(LW*0.7).toFixed(2)+'" stroke-opacity="0.5"/>';
     pts.forEach(p=>{s+='<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+R+'" fill="#222" fill-opacity="0.8"/>';});
   }
@@ -617,8 +670,19 @@ function buildYAxis(tops,pts,showDots,custom,L,mT,plotH){
   var scale=cfg.yscale,globalMax=Math.max.apply(null,tops.concat(showDots?pts:[],1e-9));
   if(scale!=='log2'&&scale!=='log10'){
     var gap=Math.max(globalMax,1e-6)*0.11;
-    var yMax=custom&&L>0?niceMax(globalMax+gap*(L+0.9)):niceMax(globalMax*1.16);
-    return {Y:function(v){return mT+plotH-(v/yMax)*plotH;},ticks:niceTicks(yMax,5),globalMax:globalMax,log:false};
+    var dataMin=Math.min.apply(null,[0].concat(pts.filter(isFinite)));
+    var allNeg=dataMin<0&&globalMax<=1e-8;
+    var yMax=allNeg?0:(custom&&L>0?niceMax(globalMax+gap*(L+0.9)):niceMax(globalMax*1.16));
+    if(dataMin<0){
+      // negative values (e.g. log2 fold change): extend the axis below zero
+      var yMin=-niceMax(-dataMin*1.1);
+      if(allNeg)yMax=niceMax(-yMin*0.15);
+      var step=niceMax((yMax-yMin)/5),t0=Math.ceil(yMin/step-1e-9),tk=[];
+      for(var q=t0;q*step<=yMax+1e-9;q++)tk.push(+(q*step).toPrecision(4));
+      var Yn=function(v){return mT+plotH-((v-yMin)/(yMax-yMin))*plotH;};
+      return {Y:Yn,ticks:tk,globalMax:globalMax,log:false,base:Yn(0)};
+    }
+    return {Y:function(v){return mT+plotH-(v/yMax)*plotH;},ticks:niceTicks(yMax,5),globalMax:globalMax,log:false,base:mT+plotH};
   }
   var base=scale==='log2'?2:10;
   function tf(v){return scale==='log2'?Math.log2(v):Math.log10(v);}
@@ -627,9 +691,10 @@ function buildYAxis(tops,pts,showDots,custom,L,mT,plotH){
   yHi+=custom&&L>0?(Math.ceil(L*0.5)+0.4):0.5;
   var Y=function(v){var tv=(v>0)?tf(v):yLo;if(tv<yLo)tv=yLo;return mT+plotH-((tv-yLo)/(yHi-yLo))*plotH;};
   var ticks=[];for(var e=Math.ceil(yLo);e<=Math.floor(yHi);e++)ticks.push(Math.pow(base,e));
-  return {Y:Y,ticks:ticks,globalMax:globalMax,log:true};
+  return {Y:Y,ticks:ticks,globalMax:globalMax,log:true,base:mT+plotH};
 }
 function buildSVG(values,stat){
+  jitSeed=12345;
   var FS=cfg.fs, LW=cfg.lw, W=cfg.W, H=Math.round(W/cfg.ar);
   var f=function(px){return (px*FS).toFixed(1);};
   var mL=Math.round(56+22*FS), mR=Math.round(20+6*FS), mT=Math.round(40+16*FS), mB=Math.round(64+26*FS);
@@ -640,7 +705,7 @@ function buildSVG(values,stat){
   // top value of each drawn element (used for sig-marker placement & axis range)
   var tops=values.map(v=>seriesTopVal(v));
   var custom=document.getElementById('cmpSel').value==='custom';
-  var L=custom?stat.brackets.filter(b=>vNS||b.padj<=0.05).length:0;
+  var L=custom?stat.brackets.filter(b=>vNS||b.padj<=0.05).length:0; // NaN (untestable) only shown with ns
   var ax=buildYAxis(tops,allPts,showDots0,custom,L,mT,plotH),Y=ax.Y,globalMax=ax.globalMax;
   function X(i){return mL+(i+0.5)*(plotW/n);}
   var barW=Math.min(Math.min(58,(plotW/n)*0.62)*cfg.barw,(plotW/n)*0.96);
@@ -651,6 +716,7 @@ function buildSVG(values,stat){
   s+='<text x="'+(W/2)+'" y="'+(mT-14)+'" text-anchor="middle" font-family="Arial" font-size="'+f(18)+'" font-weight="700" font-style="italic">'+escHtml(document.getElementById('titleIn').value)+'</text>';
   s+='<line x1="'+mL+'" y1="'+mT+'" x2="'+mL+'" y2="'+(mT+plotH)+'" stroke="#000" stroke-width="'+aw+'"/>';
   s+='<line x1="'+mL+'" y1="'+(mT+plotH)+'" x2="'+(mL+plotW)+'" y2="'+(mT+plotH)+'" stroke="#000" stroke-width="'+aw+'"/>';
+  if(Math.abs(ax.base-(mT+plotH))>0.5)s+='<line x1="'+mL+'" y1="'+ax.base+'" x2="'+(mL+plotW)+'" y2="'+ax.base+'" stroke="#000" stroke-width="'+bw+'"/>';
   ax.ticks.forEach(t=>{var y=Y(t);s+='<line x1="'+(mL-5)+'" y1="'+y+'" x2="'+mL+'" y2="'+y+'" stroke="#000" stroke-width="'+bw+'"/>';s+='<text x="'+(mL-9)+'" y="'+(y+4)+'" text-anchor="end" font-family="Arial" font-size="'+f(12)+'">'+fmtTick(t)+'</text>';});
   s+='<text transform="translate('+(mL-44*FS)+','+(mT+plotH/2)+') rotate(-90)" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('ylabIn').value)+'</text>';
   s+='<text x="'+(mL+plotW/2)+'" y="'+(H-10)+'" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('xlabIn').value)+'</text>';
@@ -658,14 +724,14 @@ function buildSVG(values,stat){
   var connect=showDots&&document.getElementById('connectChk').checked&&document.getElementById('pairedChk').checked;
   for(var i=0;i<n;i++){
     var cx=X(i);
-    s+=drawElement(values[i],cx,barW,Y,mT+plotH,FS,LW,seriesFill(i),showDots&&!connect);
+    s+=drawElement(values[i],cx,barW,Y,ax.base,FS,LW,seriesFill(i),showDots&&!connect);
     s+='<text x="'+cx+'" y="'+(mT+plotH+16)+'" text-anchor="end" font-family="Arial" font-size="'+f(12)+'" transform="rotate(-30 '+cx+' '+(mT+plotH+16)+')">'+escHtml(samples[i].name)+'</text>';
   }
-  if(connect)s+=connectLines(values.map((v,i)=>({x:X(i),v:v})),barW,Y,FS,LW);
+  if(connect)s+=connectLines((computeValues.aligned||values).map((v,i)=>({x:X(i),v:v})),barW,Y,FS,LW);
   // significance — vs control: stars above each bar
   var showNS=document.getElementById('nsChk').checked;
   if(!custom){
-    for(var i=0;i<n;i++){if(i===controlIdx)continue;var p=stat.vsControl[i];if(p===undefined)continue;if(!showNS&&p>0.05)continue;var label=cfg.sig==='pval'?fmtP(p):stars(p);var yy=Y(tops[i])-8;s+='<text x="'+X(i)+'" y="'+yy.toFixed(1)+'" text-anchor="middle" font-family="Arial" font-size="'+f(cfg.sig==='pval'?11:15)+'" font-weight="700">'+label+'</text>';}
+    for(var i=0;i<n;i++){if(i===controlIdx)continue;var p=stat.vsControl[i];if(p===undefined)continue;if(!showNS&&!(p<=0.05))continue;var label=cfg.sig==='pval'?fmtP(p):stars(p);var yy=Y(tops[i])-8;s+='<text x="'+X(i)+'" y="'+yy.toFixed(1)+'" text-anchor="middle" font-family="Arial" font-size="'+f(cfg.sig==='pval'?11:15)+'" font-weight="700">'+label+'</text>';}
   } else {
     // brackets stacked ABOVE the highest bar (never overlapping bars)
     var brStep=Math.max(18,plotH*0.06);
@@ -686,6 +752,7 @@ function buildSVG(values,stat){
 
 /* ===================== GROUPED PLOT ===================== */
 function buildGroupedSVG(gvals,gstats){
+  jitSeed=12345;
   var FS=cfg.fs,LW=cfg.lw,W=cfg.W,H=Math.round(W/cfg.ar);
   var f=function(px){return (px*FS).toFixed(1);};
   var mL=Math.round(56+22*FS),mR=Math.round(20+6*FS),mT=Math.round(40+16*FS),mB=Math.round(58+24*FS);
@@ -711,15 +778,16 @@ function buildGroupedSVG(gvals,gstats){
   s+='<text x="'+(W/2)+'" y="'+(mT-14)+'" text-anchor="middle" font-family="Arial" font-size="'+f(18)+'" font-weight="700" font-style="italic">'+escHtml(document.getElementById('titleIn').value)+'</text>';
   s+='<line x1="'+mL+'" y1="'+mT+'" x2="'+mL+'" y2="'+(mT+plotH)+'" stroke="#000" stroke-width="'+aw+'"/>';
   s+='<line x1="'+mL+'" y1="'+(mT+plotH)+'" x2="'+(mL+plotW)+'" y2="'+(mT+plotH)+'" stroke="#000" stroke-width="'+aw+'"/>';
+  if(Math.abs(ax.base-(mT+plotH))>0.5)s+='<line x1="'+mL+'" y1="'+ax.base+'" x2="'+(mL+plotW)+'" y2="'+ax.base+'" stroke="#000" stroke-width="'+bw+'"/>';
   ax.ticks.forEach(t=>{var y=Y(t);s+='<line x1="'+(mL-5)+'" y1="'+y+'" x2="'+mL+'" y2="'+y+'" stroke="#000" stroke-width="'+bw+'"/>';s+='<text x="'+(mL-9)+'" y="'+(y+4)+'" text-anchor="end" font-family="Arial" font-size="'+f(12)+'">'+fmtTick(t)+'</text>';});
   s+='<text transform="translate('+(mL-44*FS)+','+(mT+plotH/2)+') rotate(-90)" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('ylabIn').value)+'</text>';
   s+='<text x="'+(mL+plotW/2)+'" y="'+(H-10)+'" text-anchor="middle" font-family="Arial" font-size="'+f(13)+'" font-weight="700">'+escHtml(document.getElementById('xlabIn').value)+'</text>';
   // bars + group labels
   for(var gi=0;gi<G;gi++){
     for(var si=0;si<S;si++){
-      s+=drawElement(gvals[gi][si],gx(gi,si),barW,Y,mT+plotH,FS,LW,seriesFill(si),showDots&&!connect);
+      s+=drawElement(gvals[gi][si],gx(gi,si),barW,Y,ax.base,FS,LW,seriesFill(si),showDots&&!connect);
     }
-    if(connect){var cols=[];for(var si2=0;si2<S;si2++)cols.push({x:gx(gi,si2),v:gvals[gi][si2]});s+=connectLines(cols,barW,Y,FS,LW);}
+    if(connect){var cols=[];for(var si2=0;si2<S;si2++)cols.push({x:gx(gi,si2),v:((computeGroupedValues.aligned||gvals)[gi]||[])[si2]||[]});s+=connectLines(cols,barW,Y,FS,LW);}
     s+='<text x="'+slotC(gi)+'" y="'+(mT+plotH+18)+'" text-anchor="middle" font-family="Arial" font-size="'+f(12.5)+'" font-weight="700">'+escHtml(gGroups[gi])+'</text>';
     // within-group brackets (each comparison)
     gstats[gi].rows.filter(r=>showNS||r.padj<=0.05).forEach((r,lvl)=>{
@@ -774,7 +842,7 @@ function renderStatsTable(values,stat){
       ? 'Groups compared by one-way ANOVA; post-hoc = '+phName+'. '+
         (ph==='tukey'?'Tukey HSD (Tukey–Kramer for unequal n) controls the family-wise error rate across all pairwise comparisons and is the standard choice when comparing every group to every other. '
          :'These pairwise t-tests use the pooled within-group variance from the ANOVA. ')
-      : "Pairs compared with Welch's unequal-variance t-test (no ANOVA). ")+
+      : "Pairs compared with Welch's unequal-variance t-test (no ANOVA)"+(ph==='tukey'?"; Tukey HSD needs a pooled variance, so Holm correction was applied instead. ":". "))+
     (cmp==='control'?'<b>Design note:</b> when every group is compared only to a single control, <b>Dunnett’s test</b> is the most powerful valid choice; Tukey/Holm here are slightly conservative but fully valid. ':'')+
     'Significance: ns p&gt;0.05, * p≤0.05, ** p≤0.01, *** p≤0.001. '+
     (mode==='ct'?'Fold changes derived from raw Ct via the ΔΔCt method against the selected control and reference gene. ':'')+
@@ -797,7 +865,7 @@ function renderGroupedStatsTable(gvals,gstats){
   var test=document.getElementById('testSel').value,ph=document.getElementById('phSel').value;
   var phName={tukey:'Tukey HSD',holm:'Holm-adjusted t-tests',bonferroni:'Bonferroni-adjusted t-tests',none:'uncorrected Fisher LSD'}[ph];
   document.getElementById('methodNotes').innerHTML=
-    '<b>Grouping mode:</b> each group on the x-axis is analysed independently — the chosen test'+(test==='anova'?(' (one-way ANOVA + '+phName+')'):" (Welch's t-test)")+' and any multiplicity correction are applied <i>within each group separately</i>, and comparison brackets connect samples only inside the same group. Samples are identified by the legend (colour/pattern). '+
+    '<b>Grouping mode:</b> each group on the x-axis is analysed independently — the chosen test'+(test==='anova'?(' (one-way ANOVA + '+phName+')'):(" (Welch's t-test"+(ph==='tukey'?'; Holm correction, since Tukey needs a pooled variance':'')+")"))+' and any multiplicity correction are applied <i>within each group separately</i>, and comparison brackets connect samples only inside the same group. Samples are identified by the legend (colour/pattern). '+
     'Bars = mean of replicates; error bars = '+(cfg.err==='sem'?'SEM':'SD')+'. Significance: ns p&gt;0.05, * p≤0.05, ** p≤0.01, *** p≤0.001. '+
     'With the typical n=3 replicates these tests have low power; interpret accordingly.';
 }
@@ -890,26 +958,54 @@ function updateExplain(){
 }
 
 /* ===================== MAIN ===================== */
+function pruneStale(){
+  var nS=samples.length,nG=gSeries.length;
+  customPairs=customPairs.filter(p=>p[0]<nS&&p[1]<nS&&p[0]!==p[1]);
+  gPairs=gPairs.filter(p=>p[0]<nG&&p[1]<nG&&p[0]!==p[1]);
+  if(controlIdx>=nS)controlIdx=0;
+  if(gControl>=nG)gControl=0;
+}
+function logAxisWarn(vals){
+  if(cfg.yscale!=='log2'&&cfg.yscale!=='log10')return '';
+  var bad=vals.flat(2).filter(v=>v<=0).length;
+  return bad?(bad+' value(s) ≤ 0 cannot be shown on a log axis and are drawn at the bottom.'):'';
+}
+function lowPowerMsg(stats){
+  var m=0;stats.forEach(st=>{if(st&&st.lowPower)m=Math.max(m,st.lowPower);});
+  return m?('Non-parametric test: with these sample sizes the smallest attainable p-value is '+m.toPrecision(2)+', so no comparison can reach p ≤ 0.05.'):'';
+}
+function setDataMsg(parts){document.getElementById('dataErr').textContent=parts.filter(Boolean).join(' ');}
 function update(){
+  pruneStale();
+  renderPairs();
   updateExplain();
-  var err=document.getElementById('dataErr');err.textContent='';
+  var msg=[];
   var pairedOn=document.getElementById('pairedChk').checked;
+  var pairedMsg='Paired test: only replicates present (numeric) in both samples are paired, by column.';
   if(grouping){
     gControl=parseInt((document.getElementById('gControlSel')||{}).value||0,10)||0;
+    if(gControl>=gSeries.length)gControl=0;
     var gvals=computeGroupedValues();
-    if(gvals.some(grp=>grp.some(v=>v.length<2)))err.textContent='Each sample in each group needs ≥2 numeric replicates for statistics.';
-    else if(pairedOn&&gvals.some(grp=>{var L=grp.filter(v=>v.length).map(v=>v.length);return L.length&&L.some(l=>l!==L[0]);}))err.textContent='Paired test: some samples have unequal replicate counts — pairs are matched by column up to the shorter sample.';
+    msg=dataWarn.slice();
+    if(gvals.some(grp=>grp.some(v=>v.length<2)))msg.push('Each sample in each group needs ≥2 numeric replicates for statistics; comparisons lacking them are shown as n/a.');
+    else if(pairedOn&&gvals.some(grp=>{var L=grp.filter(v=>v.length).map(v=>v.length);return L.length&&L.some(l=>l!==L[0]);}))msg.push(pairedMsg);
     var gstats=runGroupedStats(gvals);
+    msg.push(lowPowerMsg(gstats),logAxisWarn(gvals));
+    setDataMsg(msg);
     lastResult={mode:'grouped',gstats:gstats};
     document.getElementById('chart').innerHTML=buildGroupedSVG(gvals,gstats);
     renderGroupedStatsTable(gvals,gstats);
     return;
   }
   controlIdx=parseInt(document.getElementById('controlSel').value||0,10)||0;
+  if(controlIdx>=samples.length)controlIdx=0;
   var values=computeValues();
-  if(values.some(v=>v.length<2))err.textContent='Each sample needs ≥2 numeric replicates for statistics.';
-  else if(pairedOn){var L=values.filter(v=>v.length).map(v=>v.length);if(L.length&&L.some(l=>l!==L[0]))err.textContent='Paired test: samples have unequal replicate counts — pairs are matched by column up to the shorter sample.';}
+  msg=dataWarn.slice();
+  if(values.some(v=>v.length<2))msg.push('Each sample needs ≥2 numeric replicates for statistics; comparisons lacking them are shown as n/a.');
+  else if(pairedOn){var L=values.filter(v=>v.length).map(v=>v.length);if(L.length&&L.some(l=>l!==L[0]))msg.push(pairedMsg);}
   var stat=runStats(values);
+  msg.push(lowPowerMsg([stat]),logAxisWarn(values));
+  setDataMsg(msg);
   lastResult={mode:'flat',stat:stat};
   document.getElementById('chart').innerHTML=buildSVG(values,stat);
   renderStatsTable(values,stat);
@@ -934,7 +1030,7 @@ function currentSVGString(){return '<?xml version="1.0" encoding="UTF-8"?>\n'+ne
 function download(blob,name){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function fileBase(){return (document.getElementById('titleIn').value||'qpcr').replace(/[^\w\-]+/g,'_');}
 function exportSVG(){download(new Blob([currentSVGString()],{type:'image/svg+xml'}),fileBase()+'.svg');}
-function exportPNG(){var svgStr=currentSVGString(),svg=document.getElementById('theSVG'),w=+svg.getAttribute('width'),h=+svg.getAttribute('height'),scale=3,img=new Image(),blob=new Blob([svgStr],{type:'image/svg+xml;charset=utf-8'}),url=URL.createObjectURL(blob);img.onload=function(){var c=document.createElement('canvas');c.width=w*scale;c.height=h*scale;var ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.setTransform(scale,0,0,scale,0,0);ctx.drawImage(img,0,0);URL.revokeObjectURL(url);c.toBlob(b=>download(b,fileBase()+'.png'),'image/png');};img.onerror=function(){alert('PNG export failed; SVG still works.');URL.revokeObjectURL(url);};img.src=url;}
+function exportPNG(){var svgStr=currentSVGString(),svg=document.getElementById('theSVG'),w=+svg.getAttribute('width'),h=+svg.getAttribute('height'),scale=Math.max(1,Math.min(3,8000/Math.max(w,h))),img=new Image(),blob=new Blob([svgStr],{type:'image/svg+xml;charset=utf-8'}),url=URL.createObjectURL(blob);img.onload=function(){var c=document.createElement('canvas');c.width=w*scale;c.height=h*scale;var ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.setTransform(scale,0,0,scale,0,0);ctx.drawImage(img,0,0);URL.revokeObjectURL(url);c.toBlob(b=>download(b,fileBase()+'.png'),'image/png');};img.onerror=function(){alert('PNG export failed; SVG still works.');URL.revokeObjectURL(url);};img.src=url;}
 function csvCell(x){x=String(x);return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x;}
 // shared matrix of statistical results; numbers stay numeric (rounded), text stays text
 function buildStatsMatrix(){
@@ -1124,7 +1220,7 @@ document.getElementById('nsChk').addEventListener('change',update);
 document.getElementById('lwIn').addEventListener('input',e=>{cfg.lw=+e.target.value;document.getElementById('lwVal').textContent=cfg.lw.toFixed(1)+'×';update();});
 document.getElementById('fsIn').addEventListener('input',e=>{cfg.fs=+e.target.value;document.getElementById('fsVal').textContent=cfg.fs.toFixed(1)+'×';update();});
 document.getElementById('bwIn').addEventListener('input',e=>{cfg.barw=+e.target.value;document.getElementById('bwVal').textContent=cfg.barw.toFixed(2)+'×';update();});
-document.getElementById('wIn').addEventListener('input',e=>{cfg.W=Math.max(300,+e.target.value||640);update();});
+document.getElementById('wIn').addEventListener('input',e=>{cfg.W=Math.min(3000,Math.max(300,+e.target.value||640));update();});
 document.getElementById('arIn').addEventListener('change',e=>{cfg.ar=+e.target.value;update();});
 // init
 renderPageThemes();applyPageTheme('graphite');

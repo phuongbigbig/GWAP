@@ -56,6 +56,16 @@ All statistics are computed in plain JavaScript (no external libraries) and have
 
 The built-in **"Statistics explained"** panel describes the currently selected test, the multiple-comparison corrections (Bonferroni, Holm, Tukey HSD, Dunnett, none), the two-group equivalence above, assumptions, and APA references — and updates live with your selections.
 
+**Data handling and edge cases.**
+- Numbers are parsed strictly in both input modes; a decimal comma (`0,7`) is accepted, other non-numeric cells are ignored and counted in a warning.
+- Paired tests match replicates by column; a blank cell drops only that pair and never shifts later replicates.
+- Comparisons that cannot be tested (fewer than 2 replicates) are reported as `n/a`, not `p = 1`, and are excluded from the Holm/Bonferroni count.
+- Zero within-group variance with different means gives p = 0 (t = ±∞) instead of p = 1.
+- A control sample with no complete target/reference Ct pair is reported as an error rather than silently using ΔCt = 0.
+- Negative values (e.g. log₂ fold change) are drawn from a zero baseline on the linear axis; values ≤ 0 on a log axis are flagged.
+- Replicate-dot jitter is deterministic, so the same data always gives the same exported figure.
+- The ΔΔCt calculation uses one amplification efficiency for both target and reference gene (Livak-style, not Pfaffl's per-gene efficiencies), and tests run on the fold-change scale.
+
 **Note on sample size:** qPCR experiments typically use n = 3 replicates, which gives low statistical power. A non-significant result is not proof of "no difference." Expression ratios are right-skewed, so analysing on the log scale (ΔCt or log₂ fold change) often better satisfies test assumptions.
 
 ### Key references (APA)
@@ -73,6 +83,10 @@ The built-in **"Statistics explained"** panel describes the currently selected t
 - Livak, K. J., & Schmittgen, T. D. (2001). Analysis of relative gene expression data using real-time quantitative PCR and the 2−ΔΔC_T method. *Methods, 25*(4), 402–408.
 - Pfaffl, M. W. (2001). A new mathematical model for relative quantification in real-time RT-PCR. *Nucleic Acids Research, 29*(9), e45.
 - Bustin, S. A., et al. (2009). The MIQE guidelines: Minimum information for publication of quantitative real-time PCR experiments. *Clinical Chemistry, 55*(4), 611–622.
+
+## Tests
+
+`node tests/stats.test.js` runs dependency-free regression tests for the statistics helpers (Tukey, Holm/Bonferroni, zero-variance, rank tests, number parsing, paired alignment).
 
 ## Browser support
 
